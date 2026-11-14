@@ -18,6 +18,17 @@ android {
         versionName = "1.0"
     }
 
+    // Pevný klíč uložený v repozitáři, aby šla každá nová verze nainstalovat
+    // přes tu předchozí (jinak by si každé sestavení vyrobilo vlastní klíč).
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
