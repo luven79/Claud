@@ -33,6 +33,18 @@ class GameViewModel : ViewModel() {
     var isThinking by mutableStateOf(false)
         private set
 
+    /** Na kolik vyhraných her se hraje zápas. */
+    var targetWins by mutableIntStateOf(1)
+        private set
+
+    /** Hráč, který už dosáhl [targetWins] výher, jinak null. */
+    val matchWinner: Player?
+        get() = when {
+            scoreX >= targetWins -> Player.X
+            scoreO >= targetWins -> Player.O
+            else -> null
+        }
+
     private var aiJob: Job? = null
 
     fun onCellTap(row: Int, col: Int) {
@@ -41,8 +53,13 @@ class GameViewModel : ViewModel() {
         if (mode == GameMode.VS_COMPUTER && !state.isOver) computerMove()
     }
 
+    /** Začne další hru; po skončení zápasu zároveň vynuluje skóre. */
     fun newGame() {
         cancelAi()
+        if (matchWinner != null) {
+            scoreX = 0
+            scoreO = 0
+        }
         state = GameState.new(state.size, state.winLength, state.first)
     }
 
@@ -74,6 +91,12 @@ class GameViewModel : ViewModel() {
     fun selectSize(size: Int) {
         if (size == state.size) return
         resetAll(size, state.first)
+    }
+
+    fun selectTargetWins(wins: Int) {
+        if (wins == targetWins) return
+        targetWins = wins
+        resetAll(state.size, state.first)
     }
 
     private fun resetAll(size: Int, first: Player) {
@@ -112,6 +135,7 @@ class GameViewModel : ViewModel() {
     companion object {
         const val DEFAULT_SIZE = 15
         val BOARD_SIZES = listOf(3, 10, 15)
+        val TARGET_WINS = listOf(1, 2, 3)
         private const val THINKING_DELAY_MS = 350L
     }
 }

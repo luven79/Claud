@@ -5,6 +5,9 @@
     <string name="mode_two_players">Dva hráči</string>
     <string name="board_size">%1$d × %1$d</string>
     <string name="new_game">Nová hra</string>
+    <string name="next_game">Další hra</string>
+    <string name="new_match">Nový zápas</string>
+    <string name="target_wins">Počet vítězství:</string>
     <string name="undo">Vrátit tah</string>
     <string name="rules_five">Vyhrává, kdo jako první spojí 5 značek v řadě.</string>
     <string name="rules_three">Vyhrává, kdo jako první spojí 3 značky v řadě.</string>
@@ -14,6 +17,9 @@
     <string name="status_win">Vyhrál hráč %1$s!</string>
     <string name="status_you_win">Vyhráli jste!</string>
     <string name="status_computer_win">Vyhrál počítač.</string>
+    <string name="status_win_match">Zápas vyhrál hráč %1$s!</string>
+    <string name="status_you_win_match">Vyhráli jste celý zápas!</string>
+    <string name="status_computer_win_match">Zápas vyhrál počítač.</string>
     <string name="status_draw">Remíza – deska je plná.</string>
     <string name="score_you">Vy (%1$s)</string>
     <string name="score_computer">Počítač (%1$s)</string>

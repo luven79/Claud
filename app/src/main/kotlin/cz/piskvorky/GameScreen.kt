@@ -104,10 +104,27 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 )
             }
 
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.target_wins),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                for (wins in GameViewModel.TARGET_WINS) {
+                    FilterChip(
+                        selected = vm.targetWins == wins,
+                        onClick = { vm.selectTargetWins(wins) },
+                        label = { Text(wins.toString()) },
+                    )
+                }
+            }
+
             ScoreRow(vm.mode, state.first, vm.scoreX, vm.scoreO)
 
             Text(
-                text = statusText(state, vm.mode, vm.isThinking),
+                text = statusText(state, vm.mode, vm.isThinking, vm.matchWinner.takeIf { vm.targetWins > 1 }),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center,
@@ -132,7 +149,15 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                     Text(stringResource(R.string.undo))
                 }
                 Button(onClick = vm::newGame) {
-                    Text(stringResource(R.string.new_game))
+                    Text(
+                        stringResource(
+                            when {
+                                vm.matchWinner != null && vm.targetWins > 1 -> R.string.new_match
+                                state.isOver -> R.string.next_game
+                                else -> R.string.new_game
+                            },
+                        ),
+                    )
                 }
             }
 
@@ -147,10 +172,19 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
 }
 
 @Composable
-private fun statusText(state: GameState, mode: GameMode, isThinking: Boolean): String {
+private fun statusText(
+    state: GameState,
+    mode: GameMode,
+    isThinking: Boolean,
+    matchWinner: Player?,
+): String {
     val vsComputer = mode == GameMode.VS_COMPUTER
     val winner = state.winner
     return when {
+        matchWinner != null && vsComputer -> stringResource(
+            if (matchWinner == state.first) R.string.status_you_win_match else R.string.status_computer_win_match,
+        )
+        matchWinner != null -> stringResource(R.string.status_win_match, matchWinner.name)
         winner != null && vsComputer ->
             stringResource(if (winner == state.first) R.string.status_you_win else R.string.status_computer_win)
         winner != null -> stringResource(R.string.status_win, winner.name)
