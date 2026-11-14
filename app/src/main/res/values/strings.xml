@@ -6,7 +6,8 @@
     <string name="board_size">%1$d × %1$d</string>
     <string name="new_game">Nová hra</string>
     <string name="undo">Vrátit tah</string>
-    <string name="rules">Vyhrává, kdo jako první spojí 5 značek v řadě.</string>
+    <string name="rules_five">Vyhrává, kdo jako první spojí 5 značek v řadě.</string>
+    <string name="rules_three">Vyhrává, kdo jako první spojí 3 značky v řadě.</string>
     <string name="status_turn">Na tahu je hráč %1$s</string>
     <string name="status_your_turn">Jste na tahu (X)</string>
     <string name="status_thinking">Počítač přemýšlí…</string>

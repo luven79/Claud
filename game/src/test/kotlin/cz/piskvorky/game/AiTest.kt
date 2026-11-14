@@ -53,6 +53,35 @@ class AiTest {
     }
 
     @Test
+    fun `on three by three it wins when it can and blocks otherwise`() {
+        // X: (0,0) (0,1), O: (1,1) (2,2); na tahu X – vyhraje na (0,2).
+        val win = listOf(0 to 0, 1 to 1, 0 to 1, 2 to 2).fold(GameState.new(3)) { s, (r, c) -> s.play(r, c) }
+        assertEquals(Cell(0, 2), Ai.chooseMove(win))
+
+        // X: (0,0) (0,1), O: (1,1); na tahu O – musí bránit na (0,2).
+        val block = listOf(0 to 0, 1 to 1, 0 to 1).fold(GameState.new(3)) { s, (r, c) -> s.play(r, c) }
+        assertEquals(Cell(0, 2), Ai.chooseMove(block))
+    }
+
+    @Test
+    fun `never loses on three by three against random play`() {
+        repeat(200) { seed ->
+            val random = Random(seed)
+            val aiPlayer = if (seed % 2 == 0) Player.O else Player.X
+            var s = GameState.new(3)
+            while (!s.isOver) {
+                val move = if (s.current == aiPlayer) {
+                    Ai.chooseMove(s, random)
+                } else {
+                    (0 until 9).map { Cell(it / 3, it % 3) }.filter { s[it.row, it.col] == null }.random(random)
+                }
+                s = s.play(move.row, move.col)
+            }
+            assertTrue(s.winner == null || s.winner == aiPlayer, "počítač prohrál (seed $seed)")
+        }
+    }
+
+    @Test
     fun `self play always produces legal moves and finishes`() {
         repeat(20) { seed ->
             val random = Random(seed)

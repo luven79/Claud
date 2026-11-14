@@ -10,10 +10,11 @@ data class Cell(val row: Int, val col: Int)
 
 /**
  * Neměnný stav partie piškvorek. Začíná vždy hráč X, vyhrává řada
- * alespoň [WIN_LENGTH] stejných značek vodorovně, svisle nebo šikmo.
+ * alespoň [winLength] stejných značek vodorovně, svisle nebo šikmo.
  */
 data class GameState(
     val size: Int,
+    val winLength: Int,
     val cells: List<Player?>,
     val moves: List<Cell>,
     val winner: Player?,
@@ -36,7 +37,7 @@ data class GameState(
         val player = current
         val newCells = cells.toMutableList()
         newCells[row * size + col] = player
-        val line = findWinningLine(newCells, size, row, col, player)
+        val line = findWinningLine(newCells, size, winLength, row, col, player)
         return copy(
             cells = newCells,
             moves = moves + Cell(row, col),
@@ -47,21 +48,24 @@ data class GameState(
 
     /** Vrátí posledních [count] tahů. */
     fun undo(count: Int = 1): GameState =
-        moves.dropLast(count).fold(new(size)) { state, move -> state.play(move.row, move.col) }
+        moves.dropLast(count).fold(new(size, winLength)) { state, move -> state.play(move.row, move.col) }
 
     companion object {
-        const val WIN_LENGTH = 5
+        /** Na desce 3×3 se hraje na tři v řadě, jinak na pět. */
+        fun defaultWinLength(size: Int): Int = if (size <= 3) 3 else 5
 
         internal val DIRECTIONS = listOf(0 to 1, 1 to 0, 1 to 1, 1 to -1)
 
-        fun new(size: Int = 15): GameState {
+        fun new(size: Int = 15, winLength: Int = defaultWinLength(size)): GameState {
             require(size > 0) { "Velikost desky musí být kladná" }
-            return GameState(size, List(size * size) { null }, emptyList(), null, emptyList())
+            require(winLength > 1) { "Délka vítězné řady musí být alespoň 2" }
+            return GameState(size, winLength, List(size * size) { null }, emptyList(), null, emptyList())
         }
 
         private fun findWinningLine(
             cells: List<Player?>,
             size: Int,
+            winLength: Int,
             row: Int,
             col: Int,
             player: Player,
@@ -84,7 +88,7 @@ data class GameState(
                     r += dr
                     c += dc
                 }
-                if (line.size >= WIN_LENGTH) return line
+                if (line.size >= winLength) return line
             }
             return emptyList()
         }

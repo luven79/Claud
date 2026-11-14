@@ -40,7 +40,7 @@ class GameViewModel : ViewModel() {
 
     fun newGame() {
         cancelAi()
-        state = GameState.new(state.size)
+        state = GameState.new(state.size, state.winLength)
     }
 
     fun undo() {
@@ -102,7 +102,7 @@ class GameViewModel : ViewModel() {
 
     companion object {
         const val DEFAULT_SIZE = 15
-        val BOARD_SIZES = listOf(10, 15)
+        val BOARD_SIZES = listOf(3, 10, 15)
         private const val THINKING_DELAY_MS = 350L
     }
 }

@@ -115,7 +115,7 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             }
 
             Text(
-                text = stringResource(R.string.rules),
+                text = stringResource(if (state.winLength == 3) R.string.rules_three else R.string.rules_five),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,

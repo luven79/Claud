@@ -82,11 +82,31 @@ class GameStateTest {
 
     @Test
     fun `full board without five is a draw`() {
-        var s = GameState.new(3)
+        var s = GameState.new(3, winLength = 5)
         for (r in 0 until 3) for (c in 0 until 3) s = s.play(r, c)
         assertNull(s.winner)
         assertTrue(s.isDraw)
         assertTrue(s.isOver)
+    }
+
+    @Test
+    fun `three by three board is played to three in a row`() {
+        assertEquals(3, GameState.new(3).winLength)
+        assertEquals(5, GameState.new(10).winLength)
+        assertEquals(5, GameState.new(15).winLength)
+
+        val s = play(3, 0 to 0, 1 to 0, 1 to 1, 2 to 0, 2 to 2)
+        assertEquals(Player.X, s.winner)
+        assertEquals(listOf(Cell(0, 0), Cell(1, 1), Cell(2, 2)), s.winningLine)
+        assertEquals(3, s.undo().winLength)
+        assertNull(s.undo().winner)
+    }
+
+    @Test
+    fun `three by three board can end in a draw`() {
+        val s = play(3, 0 to 0, 1 to 1, 0 to 1, 0 to 2, 2 to 0, 1 to 0, 1 to 2, 2 to 1, 2 to 2)
+        assertNull(s.winner)
+        assertTrue(s.isDraw)
     }
 
     @Test

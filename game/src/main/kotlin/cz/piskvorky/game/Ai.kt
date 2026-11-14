@@ -4,18 +4,25 @@ import kotlin.math.abs
 import kotlin.random.Random
 
 /**
- * Počítačový protihráč. Každé volné pole v okolí kamenů ohodnotí podle toho,
+ * Počítačový protihráč. Malou desku (3×3) propočítá celou do konce, takže
+ * na ní neprohraje. Na větších deskách každé volné pole v okolí kamenů ohodnotí podle toho,
  * jak silnou řadu by na něm vytvořil sám (útok) a jakou by tím zkazil
  * soupeři (obrana), a vybere pole s nejvyšším součtem.
  */
 object Ai {
     private const val DEFENSE_WEIGHT = 0.8
     private const val NEIGHBOR_DISTANCE = 2
+    private const val FULL_SEARCH_MAX_CELLS = 9
+    private const val WIN_SCORE = 1000
+
+    /** Tabulka v [patternScore] je sestavená pro hru na pět v řadě. */
+    private const val STANDARD_WIN_LENGTH = 5
 
     fun chooseMove(state: GameState, random: Random = Random.Default): Cell {
         check(!state.isOver) { "Partie už skončila" }
         val size = state.size
         if (state.moves.isEmpty()) return Cell(size / 2, size / 2)
+        if (size * size <= FULL_SEARCH_MAX_CELLS) return fullSearch(state, random)
 
         val me = state.current
         var bestScore = -1.0
@@ -33,6 +40,41 @@ object Ai {
             }
         }
         return best.random(random)
+    }
+
+    /** Úplné prohledání hry (minimax); mezi stejně dobrými tahy vybírá náhodně. */
+    private fun fullSearch(state: GameState, random: Random): Cell {
+        var bestScore = Int.MIN_VALUE
+        val best = mutableListOf<Cell>()
+        for (cell in emptyCells(state)) {
+            val score = -negamax(state.play(cell.row, cell.col), 1)
+            if (score > bestScore) {
+                bestScore = score
+                best.clear()
+            }
+            if (score == bestScore) best += cell
+        }
+        return best.random(random)
+    }
+
+    /** Hodnota pozice z pohledu hráče na tahu; dřívější výhra má vyšší cenu. */
+    private fun negamax(state: GameState, depth: Int): Int {
+        if (state.winner != null) return depth - WIN_SCORE
+        if (state.isDraw) return 0
+        var best = Int.MIN_VALUE
+        for (cell in emptyCells(state)) {
+            val score = -negamax(state.play(cell.row, cell.col), depth + 1)
+            if (score > best) best = score
+        }
+        return best
+    }
+
+    private fun emptyCells(state: GameState): List<Cell> = buildList {
+        for (row in 0 until state.size) {
+            for (col in 0 until state.size) {
+                if (state[row, col] == null) add(Cell(row, col))
+            }
+        }
     }
 
     private fun hasNeighbor(state: GameState, row: Int, col: Int): Boolean {
@@ -53,11 +95,11 @@ object Ai {
             val backward = scan(state, row, col, -dr, -dc, player)
             val count = forward.stones + backward.stones
             val room = 1 + count + forward.free + backward.free
-            if (room < GameState.WIN_LENGTH) {
+            if (room < state.winLength) {
                 0.0
             } else {
                 val openEnds = (if (forward.free > 0) 1 else 0) + (if (backward.free > 0) 1 else 0)
-                patternScore(count, openEnds)
+                patternScore(count + STANDARD_WIN_LENGTH - state.winLength, openEnds)
             }
         }
 
@@ -74,7 +116,7 @@ object Ai {
             c += dc
         }
         var free = 0
-        while (free < GameState.WIN_LENGTH && state.inBounds(r, c) && state[r, c] == null) {
+        while (free < state.winLength && state.inBounds(r, c) && state[r, c] == null) {
             free++
             r += dr
             c += dc
