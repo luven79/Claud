@@ -1,10 +1,13 @@
 package cz.piskvorky
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -53,13 +56,16 @@ private val ColorX = Color(0xFF1E66D0)
 private val ColorO = Color(0xFFD63A3A)
 private val ColorWin = Color(0xFFFFB300)
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun GameScreen(vm: GameViewModel = viewModel()) {
     val state = vm.state
     val online = vm.mode == GameMode.ONLINE
     val settingsEnabled = !vm.settingsLocked
     val showGame = !online || vm.onlineStatus == OnlineStatus.PLAYING
+
+    // Systémové „zpět“ v online režimu nezavře aplikaci, ale vrátí běžnou hru.
+    BackHandler(enabled = online) { vm.exitOnline() }
 
     Scaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
@@ -73,7 +79,7 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally)) {
                 FilterChip(
                     selected = vm.mode == GameMode.VS_COMPUTER,
                     onClick = { vm.selectMode(GameMode.VS_COMPUTER) },
@@ -254,6 +260,7 @@ private fun OnlinePanel(vm: GameViewModel) {
                         Text(stringResource(R.string.online_join))
                     }
                 }
+                TextButton(onClick = vm::exitOnline) { Text(stringResource(R.string.online_back)) }
             }
             OnlineStatus.CONNECTING -> {
                 Text(stringResource(R.string.online_connecting))

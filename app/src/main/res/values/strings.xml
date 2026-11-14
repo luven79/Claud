@@ -44,6 +44,7 @@
     <string name="online_playing">Game %1$s</string>
     <string name="online_leave">Leave</string>
     <string name="online_cancel">Cancel</string>
+    <string name="online_back">← Back to offline play</string>
     <string name="online_close">Close</string>
     <string name="online_opponent_left">Your opponent left the game.</string>
     <string name="online_error">The message could not be sent. Check your internet connection and host the game again.</string>

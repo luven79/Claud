@@ -43,6 +43,7 @@
     <string name="online_playing">Hra %1$s</string>
     <string name="online_leave">Odejít</string>
     <string name="online_cancel">Zrušit</string>
+    <string name="online_back">← Zpět na hru na jednom mobilu</string>
     <string name="online_close">Zavřít</string>
     <string name="online_opponent_left">Soupeř hru opustil.</string>
     <string name="online_error">Zprávu se nepodařilo odeslat. Zkontrolujte připojení k internetu a založte hru znovu.</string>

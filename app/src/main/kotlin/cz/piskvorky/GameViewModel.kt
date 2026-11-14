@@ -88,6 +88,7 @@ class GameViewModel : ViewModel() {
         get() = mode == GameMode.ONLINE && onlineStatus != OnlineStatus.OFF
 
     private var aiJob: Job? = null
+    private var offlineMode = GameMode.VS_COMPUTER
 
     private class Session(val channel: NtfyChannel, val outbox: Channel<String>, val job: Job)
 
@@ -132,8 +133,14 @@ class GameViewModel : ViewModel() {
     fun selectMode(newMode: GameMode) {
         if (newMode == mode) return
         leaveOnline()
+        if (mode != GameMode.ONLINE) offlineMode = mode
         mode = newMode
         resetAll(state.size, state.first)
+    }
+
+    /** Opustí online režim a vrátí se k režimu, který byl zvolený před ním. */
+    fun exitOnline() {
+        if (mode == GameMode.ONLINE) selectMode(offlineMode)
     }
 
     /** Zvolí značku, kterou se začíná (proti počítači značku člověka). */
