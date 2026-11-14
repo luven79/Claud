@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Piškvorky</string>
+    <string name="mode_vs_computer">Proti počítači</string>
+    <string name="mode_two_players">Dva hráči</string>
+    <string name="board_size">%1$d × %1$d</string>
+    <string name="new_game">Nová hra</string>
+    <string name="undo">Vrátit tah</string>
+    <string name="rules">Vyhrává, kdo jako první spojí 5 značek v řadě.</string>
+    <string name="status_turn">Na tahu je hráč %1$s</string>
+    <string name="status_your_turn">Jste na tahu (X)</string>
+    <string name="status_thinking">Počítač přemýšlí…</string>
+    <string name="status_win">Vyhrál hráč %1$s!</string>
+    <string name="status_you_win">Vyhráli jste!</string>
+    <string name="status_computer_win">Vyhrál počítač.</string>
+    <string name="status_draw">Remíza – deska je plná.</string>
+    <string name="score_you">Vy (X)</string>
+    <string name="score_computer">Počítač (O)</string>
+    <string name="score_player_x">Hráč X</string>
+    <string name="score_player_o">Hráč O</string>
+</resources>
