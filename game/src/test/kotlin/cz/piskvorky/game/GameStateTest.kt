@@ -24,6 +24,19 @@ class GameStateTest {
     }
 
     @Test
+    fun `O can be the starting player`() {
+        var s = GameState.new(3, first = Player.O)
+        assertEquals(Player.O, s.current)
+        s = s.play(0, 0)
+        assertEquals(Player.O, s[0, 0])
+        assertEquals(Player.X, s.current)
+        s = s.play(1, 0).play(1, 1).play(2, 0).play(2, 2)
+        assertEquals(Player.O, s.winner)
+        assertEquals(Player.O, s.undo().first)
+        assertEquals(Player.O, s.undo(5).current)
+    }
+
+    @Test
     fun `occupied and out of bounds cells are rejected`() {
         val s = GameState.new().play(3, 3)
         assertFalse(s.canPlay(3, 3))

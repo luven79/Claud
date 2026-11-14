@@ -9,14 +9,17 @@
     <string name="rules_five">Vyhrává, kdo jako první spojí 5 značek v řadě.</string>
     <string name="rules_three">Vyhrává, kdo jako první spojí 3 značky v řadě.</string>
     <string name="status_turn">Na tahu je hráč %1$s</string>
-    <string name="status_your_turn">Jste na tahu (X)</string>
+    <string name="status_your_turn">Jste na tahu (%1$s)</string>
     <string name="status_thinking">Počítač přemýšlí…</string>
     <string name="status_win">Vyhrál hráč %1$s!</string>
     <string name="status_you_win">Vyhráli jste!</string>
     <string name="status_computer_win">Vyhrál počítač.</string>
     <string name="status_draw">Remíza – deska je plná.</string>
-    <string name="score_you">Vy (X)</string>
-    <string name="score_computer">Počítač (O)</string>
-    <string name="score_player_x">Hráč X</string>
-    <string name="score_player_o">Hráč O</string>
+    <string name="score_you">Vy (%1$s)</string>
+    <string name="score_computer">Počítač (%1$s)</string>
+    <string name="score_player">Hráč %1$s</string>
+    <string name="symbol_yours">Vaše značka:</string>
+    <string name="symbol_starts">Začíná:</string>
+    <string name="symbol_x">✕ Křížek</string>
+    <string name="symbol_o">◯ Kolečko</string>
 </resources>

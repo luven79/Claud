@@ -9,18 +9,19 @@ enum class Player {
 data class Cell(val row: Int, val col: Int)
 
 /**
- * Neměnný stav partie piškvorek. Začíná vždy hráč X, vyhrává řada
+ * Neměnný stav partie piškvorek. Začíná hráč [first], vyhrává řada
  * alespoň [winLength] stejných značek vodorovně, svisle nebo šikmo.
  */
 data class GameState(
     val size: Int,
     val winLength: Int,
+    val first: Player,
     val cells: List<Player?>,
     val moves: List<Cell>,
     val winner: Player?,
     val winningLine: List<Cell>,
 ) {
-    val current: Player get() = if (moves.size % 2 == 0) Player.X else Player.O
+    val current: Player get() = if (moves.size % 2 == 0) first else first.other
     val isDraw: Boolean get() = winner == null && moves.size == size * size
     val isOver: Boolean get() = winner != null || isDraw
     val lastMove: Cell? get() = moves.lastOrNull()
@@ -48,7 +49,7 @@ data class GameState(
 
     /** Vrátí posledních [count] tahů. */
     fun undo(count: Int = 1): GameState =
-        moves.dropLast(count).fold(new(size, winLength)) { state, move -> state.play(move.row, move.col) }
+        moves.dropLast(count).fold(new(size, winLength, first)) { state, move -> state.play(move.row, move.col) }
 
     companion object {
         /** Na desce 3×3 se hraje na tři v řadě, jinak na pět. */
@@ -56,10 +57,14 @@ data class GameState(
 
         internal val DIRECTIONS = listOf(0 to 1, 1 to 0, 1 to 1, 1 to -1)
 
-        fun new(size: Int = 15, winLength: Int = defaultWinLength(size)): GameState {
+        fun new(
+            size: Int = 15,
+            winLength: Int = defaultWinLength(size),
+            first: Player = Player.X,
+        ): GameState {
             require(size > 0) { "Velikost desky musí být kladná" }
             require(winLength > 1) { "Délka vítězné řady musí být alespoň 2" }
-            return GameState(size, winLength, List(size * size) { null }, emptyList(), null, emptyList())
+            return GameState(size, winLength, first, List(size * size) { null }, emptyList(), null, emptyList())
         }
 
         private fun findWinningLine(

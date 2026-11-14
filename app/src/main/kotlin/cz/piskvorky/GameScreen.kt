@@ -82,7 +82,29 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                 }
             }
 
-            ScoreRow(vm.mode, vm.scoreX, vm.scoreO)
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(
+                        if (vm.mode == GameMode.VS_COMPUTER) R.string.symbol_yours else R.string.symbol_starts,
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                FilterChip(
+                    selected = state.first == Player.X,
+                    onClick = { vm.selectSymbol(Player.X) },
+                    label = { Text(stringResource(R.string.symbol_x), color = ColorX) },
+                )
+                FilterChip(
+                    selected = state.first == Player.O,
+                    onClick = { vm.selectSymbol(Player.O) },
+                    label = { Text(stringResource(R.string.symbol_o), color = ColorO) },
+                )
+            }
+
+            ScoreRow(vm.mode, state.first, vm.scoreX, vm.scoreO)
 
             Text(
                 text = statusText(state, vm.mode, vm.isThinking),
@@ -130,24 +152,31 @@ private fun statusText(state: GameState, mode: GameMode, isThinking: Boolean): S
     val winner = state.winner
     return when {
         winner != null && vsComputer ->
-            stringResource(if (winner == Player.X) R.string.status_you_win else R.string.status_computer_win)
+            stringResource(if (winner == state.first) R.string.status_you_win else R.string.status_computer_win)
         winner != null -> stringResource(R.string.status_win, winner.name)
         state.isDraw -> stringResource(R.string.status_draw)
         isThinking -> stringResource(R.string.status_thinking)
-        vsComputer -> stringResource(R.string.status_your_turn)
+        vsComputer -> stringResource(R.string.status_your_turn, state.first.name)
         else -> stringResource(R.string.status_turn, state.current.name)
     }
 }
 
 @Composable
-private fun ScoreRow(mode: GameMode, scoreX: Int, scoreO: Int) {
+private fun scoreLabel(vsComputer: Boolean, human: Player, player: Player): String = when {
+    !vsComputer -> stringResource(R.string.score_player, player.name)
+    player == human -> stringResource(R.string.score_you, player.name)
+    else -> stringResource(R.string.score_computer, player.name)
+}
+
+@Composable
+private fun ScoreRow(mode: GameMode, human: Player, scoreX: Int, scoreO: Int) {
     val vsComputer = mode == GameMode.VS_COMPUTER
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = stringResource(if (vsComputer) R.string.score_you else R.string.score_player_x),
+            text = scoreLabel(vsComputer, human, Player.X),
             color = ColorX,
             fontWeight = FontWeight.Medium,
         )
@@ -157,7 +186,7 @@ private fun ScoreRow(mode: GameMode, scoreX: Int, scoreO: Int) {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = stringResource(if (vsComputer) R.string.score_computer else R.string.score_player_o),
+            text = scoreLabel(vsComputer, human, Player.O),
             color = ColorO,
             fontWeight = FontWeight.Medium,
         )

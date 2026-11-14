@@ -17,7 +17,10 @@ import kotlinx.coroutines.withContext
 
 enum class GameMode { VS_COMPUTER, TWO_PLAYERS }
 
-/** Drží stav partie přes otočení displeje. V režimu proti počítači hraje člověk za X. */
+/**
+ * Drží stav partie přes otočení displeje. Začíná vždy značka [GameState.first];
+ * v režimu proti počítači je to značka člověka.
+ */
 class GameViewModel : ViewModel() {
     var state by mutableStateOf(GameState.new(DEFAULT_SIZE))
         private set
@@ -40,7 +43,7 @@ class GameViewModel : ViewModel() {
 
     fun newGame() {
         cancelAi()
-        state = GameState.new(state.size, state.winLength)
+        state = GameState.new(state.size, state.winLength, state.first)
     }
 
     fun undo() {
@@ -59,19 +62,25 @@ class GameViewModel : ViewModel() {
     fun selectMode(newMode: GameMode) {
         if (newMode == mode) return
         mode = newMode
-        resetAll(state.size)
+        resetAll(state.size, state.first)
+    }
+
+    /** Zvolí značku, kterou se začíná (proti počítači značku člověka). */
+    fun selectSymbol(symbol: Player) {
+        if (symbol == state.first) return
+        resetAll(state.size, symbol)
     }
 
     fun selectSize(size: Int) {
         if (size == state.size) return
-        resetAll(size)
+        resetAll(size, state.first)
     }
 
-    private fun resetAll(size: Int) {
+    private fun resetAll(size: Int, first: Player) {
         cancelAi()
         scoreX = 0
         scoreO = 0
-        state = GameState.new(size)
+        state = GameState.new(size, first = first)
     }
 
     private fun applyMove(row: Int, col: Int) {
