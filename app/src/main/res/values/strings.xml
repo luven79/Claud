@@ -3,6 +3,7 @@
     <string name="app_name">Piškvorky</string>
     <string name="mode_vs_computer">Proti počítači</string>
     <string name="mode_two_players">Dva hráči</string>
+    <string name="mode_online">Online</string>
     <string name="board_size">%1$d × %1$d</string>
     <string name="new_game">Nová hra</string>
     <string name="next_game">Další hra</string>
@@ -28,4 +29,22 @@
     <string name="symbol_starts">Začíná:</string>
     <string name="symbol_x">✕ Křížek</string>
     <string name="symbol_o">◯ Kolečko</string>
+    <string name="status_opponent_turn">Na tahu je soupeř…</string>
+    <string name="status_opponent_win">Vyhrál soupeř.</string>
+    <string name="status_opponent_win_match">Zápas vyhrál soupeř.</string>
+    <string name="score_opponent">Soupeř (%1$s)</string>
+    <string name="online_intro">Hra přes internet na dvou telefonech. Jeden hráč nahoře zvolí nastavení a založí hru, druhý se připojí kódem.</string>
+    <string name="online_host">Založit hru</string>
+    <string name="online_join">Připojit se</string>
+    <string name="online_code_label">Kód hry</string>
+    <string name="online_connecting">Připojování…</string>
+    <string name="online_code_title">Kód hry – sdělte ho soupeři:</string>
+    <string name="online_waiting_opponent">Čekám, až se soupeř připojí…</string>
+    <string name="online_waiting_host">Připojeno ke hře %1$s, čekám na soupeře…\nPokud se nic neděje, zkontrolujte kód.</string>
+    <string name="online_playing">Hra %1$s</string>
+    <string name="online_leave">Odejít</string>
+    <string name="online_cancel">Zrušit</string>
+    <string name="online_close">Zavřít</string>
+    <string name="online_opponent_left">Soupeř hru opustil.</string>
+    <string name="online_error">Zprávu se nepodařilo odeslat. Zkontrolujte připojení k internetu a založte hru znovu.</string>
 </resources>

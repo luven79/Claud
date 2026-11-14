@@ -13,6 +13,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.unit.sp
 import androidx.compose.material3.Button
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +57,10 @@ private val ColorWin = Color(0xFFFFB300)
 @Composable
 fun GameScreen(vm: GameViewModel = viewModel()) {
     val state = vm.state
+    val online = vm.mode == GameMode.ONLINE
+    val settingsEnabled = !vm.settingsLocked
+    val showGame = !online || vm.onlineStatus == OnlineStatus.PLAYING
+
     Scaffold(
         topBar = { CenterAlignedTopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
     ) { padding ->
@@ -60,7 +73,7 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(
                     selected = vm.mode == GameMode.VS_COMPUTER,
                     onClick = { vm.selectMode(GameMode.VS_COMPUTER) },
@@ -71,12 +84,18 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                     onClick = { vm.selectMode(GameMode.TWO_PLAYERS) },
                     label = { Text(stringResource(R.string.mode_two_players)) },
                 )
+                FilterChip(
+                    selected = online,
+                    onClick = { vm.selectMode(GameMode.ONLINE) },
+                    label = { Text(stringResource(R.string.mode_online)) },
+                )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 for (size in GameViewModel.BOARD_SIZES) {
                     FilterChip(
                         selected = state.size == size,
                         onClick = { vm.selectSize(size) },
+                        enabled = settingsEnabled,
                         label = { Text(stringResource(R.string.board_size, size)) },
                     )
                 }
@@ -88,18 +107,24 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
             ) {
                 Text(
                     text = stringResource(
-                        if (vm.mode == GameMode.VS_COMPUTER) R.string.symbol_yours else R.string.symbol_starts,
+                        when {
+                            online && vm.settingsLocked -> R.string.symbol_starts
+                            vm.mode == GameMode.TWO_PLAYERS -> R.string.symbol_starts
+                            else -> R.string.symbol_yours
+                        },
                     ),
                     style = MaterialTheme.typography.bodyMedium,
                 )
                 FilterChip(
                     selected = state.first == Player.X,
                     onClick = { vm.selectSymbol(Player.X) },
+                    enabled = settingsEnabled,
                     label = { Text(stringResource(R.string.symbol_x), color = ColorX) },
                 )
                 FilterChip(
                     selected = state.first == Player.O,
                     onClick = { vm.selectSymbol(Player.O) },
+                    enabled = settingsEnabled,
                     label = { Text(stringResource(R.string.symbol_o), color = ColorO) },
                 )
             }
@@ -116,57 +141,168 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
                     FilterChip(
                         selected = vm.targetWins == wins,
                         onClick = { vm.selectTargetWins(wins) },
+                        enabled = settingsEnabled,
                         label = { Text(wins.toString()) },
                     )
                 }
             }
 
-            ScoreRow(vm.mode, state.first, vm.scoreX, vm.scoreO)
+            if (online) OnlinePanel(vm)
 
-            Text(
-                text = statusText(state, vm.mode, vm.isThinking, vm.matchWinner.takeIf { vm.targetWins > 1 }),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
-                textAlign = TextAlign.Center,
-                color = when {
-                    state.winner == Player.X -> ColorX
-                    state.winner == Player.O -> ColorO
-                    else -> MaterialTheme.colorScheme.onSurface
-                },
-            )
+            if (showGame) {
+                ScoreRow(vm.mode, vm.localPlayer, vm.scoreX, vm.scoreO)
 
-            BoardView(
-                state = state,
-                onCellTap = vm::onCellTap,
-                modifier = Modifier
-                    .widthIn(max = 560.dp)
-                    .fillMaxWidth()
-                    .aspectRatio(1f),
-            )
+                Text(
+                    text = statusText(
+                        state = state,
+                        mode = vm.mode,
+                        localPlayer = vm.localPlayer,
+                        isThinking = vm.isThinking,
+                        matchWinner = vm.matchWinner.takeIf { vm.targetWins > 1 },
+                    ),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center,
+                    color = when {
+                        state.winner == Player.X -> ColorX
+                        state.winner == Player.O -> ColorO
+                        else -> MaterialTheme.colorScheme.onSurface
+                    },
+                )
 
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedButton(onClick = vm::undo, enabled = state.moves.isNotEmpty()) {
-                    Text(stringResource(R.string.undo))
+                BoardView(
+                    state = state,
+                    onCellTap = vm::onCellTap,
+                    modifier = Modifier
+                        .widthIn(max = 560.dp)
+                        .fillMaxWidth()
+                        .aspectRatio(1f),
+                )
+
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (!online) {
+                        OutlinedButton(onClick = vm::undo, enabled = state.moves.isNotEmpty()) {
+                            Text(stringResource(R.string.undo))
+                        }
+                    }
+                    Button(onClick = vm::newGame) {
+                        Text(
+                            stringResource(
+                                when {
+                                    vm.matchWinner != null && vm.targetWins > 1 -> R.string.new_match
+                                    state.isOver -> R.string.next_game
+                                    else -> R.string.new_game
+                                },
+                            ),
+                        )
+                    }
                 }
-                Button(onClick = vm::newGame) {
-                    Text(
-                        stringResource(
-                            when {
-                                vm.matchWinner != null && vm.targetWins > 1 -> R.string.new_match
-                                state.isOver -> R.string.next_game
-                                else -> R.string.new_game
-                            },
-                        ),
+
+                Text(
+                    text = stringResource(if (state.winLength == 3) R.string.rules_three else R.string.rules_five),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+/** Ovládání síťové hry: založení místnosti, připojení kódem a stav spojení. */
+@Composable
+private fun OnlinePanel(vm: GameViewModel) {
+    var codeInput by rememberSaveable { mutableStateOf("") }
+
+    Column(
+        modifier = Modifier
+            .widthIn(max = 560.dp)
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        when (vm.onlineStatus) {
+            OnlineStatus.OFF -> {
+                Text(
+                    text = stringResource(R.string.online_intro),
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                )
+                Button(onClick = vm::hostGame) { Text(stringResource(R.string.online_host)) }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = codeInput,
+                        onValueChange = { text ->
+                            codeInput = text.uppercase()
+                                .filter { it in GameViewModel.CODE_ALPHABET }
+                                .take(GameViewModel.ROOM_CODE_LENGTH)
+                        },
+                        label = { Text(stringResource(R.string.online_code_label)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                        modifier = Modifier.weight(1f),
                     )
+                    OutlinedButton(
+                        onClick = { vm.joinGame(codeInput) },
+                        enabled = codeInput.length == GameViewModel.ROOM_CODE_LENGTH,
+                    ) {
+                        Text(stringResource(R.string.online_join))
+                    }
                 }
             }
-
-            Text(
-                text = stringResource(if (state.winLength == 3) R.string.rules_three else R.string.rules_five),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-            )
+            OnlineStatus.CONNECTING -> {
+                Text(stringResource(R.string.online_connecting))
+                TextButton(onClick = vm::leaveOnline) { Text(stringResource(R.string.online_cancel)) }
+            }
+            OnlineStatus.WAITING_FOR_OPPONENT -> {
+                Text(stringResource(R.string.online_code_title), style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = vm.roomCode,
+                    style = MaterialTheme.typography.displaySmall,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 6.sp,
+                )
+                Text(
+                    text = stringResource(R.string.online_waiting_opponent),
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                )
+                TextButton(onClick = vm::leaveOnline) { Text(stringResource(R.string.online_cancel)) }
+            }
+            OnlineStatus.WAITING_FOR_HOST -> {
+                Text(
+                    text = stringResource(R.string.online_waiting_host, vm.roomCode),
+                    textAlign = TextAlign.Center,
+                )
+                TextButton(onClick = vm::leaveOnline) { Text(stringResource(R.string.online_cancel)) }
+            }
+            OnlineStatus.PLAYING -> Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.online_playing, vm.roomCode),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                TextButton(onClick = vm::leaveOnline) { Text(stringResource(R.string.online_leave)) }
+            }
+            OnlineStatus.OPPONENT_LEFT -> {
+                Text(stringResource(R.string.online_opponent_left))
+                Button(onClick = vm::leaveOnline) { Text(stringResource(R.string.online_close)) }
+            }
+            OnlineStatus.ERROR -> {
+                Text(
+                    text = stringResource(R.string.online_error),
+                    color = MaterialTheme.colorScheme.error,
+                    textAlign = TextAlign.Center,
+                )
+                Button(onClick = vm::leaveOnline) { Text(stringResource(R.string.online_close)) }
+            }
         }
     }
 }
@@ -175,42 +311,54 @@ fun GameScreen(vm: GameViewModel = viewModel()) {
 private fun statusText(
     state: GameState,
     mode: GameMode,
+    localPlayer: Player?,
     isThinking: Boolean,
     matchWinner: Player?,
 ): String {
-    val vsComputer = mode == GameMode.VS_COMPUTER
+    val online = mode == GameMode.ONLINE
     val winner = state.winner
     return when {
-        matchWinner != null && vsComputer -> stringResource(
-            if (matchWinner == state.first) R.string.status_you_win_match else R.string.status_computer_win_match,
+        matchWinner != null && localPlayer != null -> stringResource(
+            when {
+                matchWinner == localPlayer -> R.string.status_you_win_match
+                online -> R.string.status_opponent_win_match
+                else -> R.string.status_computer_win_match
+            },
         )
         matchWinner != null -> stringResource(R.string.status_win_match, matchWinner.name)
-        winner != null && vsComputer ->
-            stringResource(if (winner == state.first) R.string.status_you_win else R.string.status_computer_win)
+        winner != null && localPlayer != null -> stringResource(
+            when {
+                winner == localPlayer -> R.string.status_you_win
+                online -> R.string.status_opponent_win
+                else -> R.string.status_computer_win
+            },
+        )
         winner != null -> stringResource(R.string.status_win, winner.name)
         state.isDraw -> stringResource(R.string.status_draw)
         isThinking -> stringResource(R.string.status_thinking)
-        vsComputer -> stringResource(R.string.status_your_turn, state.first.name)
+        localPlayer != null && state.current == localPlayer ->
+            stringResource(R.string.status_your_turn, localPlayer.name)
+        localPlayer != null -> stringResource(R.string.status_opponent_turn)
         else -> stringResource(R.string.status_turn, state.current.name)
     }
 }
 
 @Composable
-private fun scoreLabel(vsComputer: Boolean, human: Player, player: Player): String = when {
-    !vsComputer -> stringResource(R.string.score_player, player.name)
-    player == human -> stringResource(R.string.score_you, player.name)
+private fun scoreLabel(mode: GameMode, localPlayer: Player?, player: Player): String = when {
+    localPlayer == null -> stringResource(R.string.score_player, player.name)
+    player == localPlayer -> stringResource(R.string.score_you, player.name)
+    mode == GameMode.ONLINE -> stringResource(R.string.score_opponent, player.name)
     else -> stringResource(R.string.score_computer, player.name)
 }
 
 @Composable
-private fun ScoreRow(mode: GameMode, human: Player, scoreX: Int, scoreO: Int) {
-    val vsComputer = mode == GameMode.VS_COMPUTER
+private fun ScoreRow(mode: GameMode, localPlayer: Player?, scoreX: Int, scoreO: Int) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(
-            text = scoreLabel(vsComputer, human, Player.X),
+            text = scoreLabel(mode, localPlayer, Player.X),
             color = ColorX,
             fontWeight = FontWeight.Medium,
         )
@@ -220,7 +368,7 @@ private fun ScoreRow(mode: GameMode, human: Player, scoreX: Int, scoreO: Int) {
             fontWeight = FontWeight.Bold,
         )
         Text(
-            text = scoreLabel(vsComputer, human, Player.O),
+            text = scoreLabel(mode, localPlayer, Player.O),
             color = ColorO,
             fontWeight = FontWeight.Medium,
         )
