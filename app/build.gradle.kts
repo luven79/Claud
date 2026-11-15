@@ -14,8 +14,8 @@ android {
         applicationId = "cz.piskvorky"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1"
     }
 
     // Pevný klíč uložený v repozitáři, aby šla každá nová verze nainstalovat
@@ -32,6 +32,8 @@ android {
     buildTypes {
         release {
             isMinifyEnabled = false
+            // Stejný klíč jako u ladicího sestavení, aby šla aktualizace přes starší verzi.
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
