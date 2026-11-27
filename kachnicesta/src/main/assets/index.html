@@ -774,6 +774,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   }
   function afterDeath() {
     hippo.visible = false; popGroup.visible = false;
+    clearSplats();                                          // the road is clean again for the next try
     for (const n of ["fl", "fr"]) { const f = player.getObjectByName(n); if (f) { f.rotation.x = 0; f.position.y = .03; } }
     if (crashedBike) { crashedBike.crashed = false; crashedBike = null; }
     toss = null; player.rotation.set(0, faceAngle, 0);
