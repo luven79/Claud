@@ -675,7 +675,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     const len = amount * 1.05 * spring;
     for (const e of popEyes) {
       const wob = Math.sin(t * 24 + e.side * 3) * Math.exp(-t * 1.2) * .35;
-      const dir = toCam.clone().add(right.clone().multiplyScalar(e.side * (.3 + wob * .3))).add(UP.clone().multiplyScalar(.15 + wob * .3)).normalize();
+      const dir = toCam.clone().multiplyScalar(.45).add(right.clone().multiplyScalar(e.side * (.45 + wob * .3))).add(UP.clone().multiplyScalar(1 + wob * .3)).normalize();
       const tip = head.clone().add(right.clone().multiplyScalar(e.side * .13)).add(dir.clone().multiplyScalar(Math.max(.05, len)));
       const base = head.clone().add(right.clone().multiplyScalar(e.side * .13));
       e.stalk.position.copy(base).lerp(tip, .5);
@@ -702,7 +702,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     upperJaw.rotation.x = -open;
     const happy = t > .95 && t < 2.9;
     for (const l of hippoLids) l.visible = happy;
-    hippo.rotation.y = Math.sin(clock * 2) * .08;
+    hippo.rotation.y = Math.PI / 2 + Math.sin(clock * 2) * .06;
   }
 
   // ---- deaths: each kind has its own animation; a bike crash throws the animal under the next vehicle ----
@@ -860,6 +860,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   // ================= RENDER =================
   const camTarget = new THREE.Vector3(5.5, 0, START_ROW - 1.1);
   let camDist = 5.2, showcase = true, closeUp = false;
+  const camOff = new THREE.Vector3(0, .87, .5).normalize();
   function layout() {
     const w = stage.clientWidth;
     const h = Math.max(300, Math.min(window.innerHeight - 270, w * 1.12));
@@ -873,6 +874,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     // lanes
     for (const l of lanes) for (const it of l.items) {
       const m = it.mesh, x = it.x + l.len / 2, z = cz(l.row);
+      // keep traffic in front of the camera out of the hippo close-up
+      m.visible = !(closeUp && l.type !== "river" && l.row > hippoAt.z && l.row <= hippoAt.z + 4);
       if (l.type === "rail") { m.position.set(x, 0, z); continue; }
       if (l.type === "road") {
         m.position.set(x, 0, z);
@@ -951,25 +954,25 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           if (t >= 1) { py = .18; player.rotation.set(0, faceAngle + Math.sin(clock * 6) * .3, Math.PI / 2); }
         } else if (dieKind === "water") {
           const t = dieT; hippoAnim(t);
-          const mouth = new THREE.Vector3(hippoAt.x, .55, hippoAt.z + .6);
-          if (t < .5) { py = -.05 + Math.sin(clock * 14) * .05; player.rotation.z = Math.sin(clock * 16) * .35; ox = hippoAt.x; oz = hippoAt.z + .25; }
+          const mouth = new THREE.Vector3(hippoAt.x + .75, .55, hippoAt.z);
+          if (t < .5) { py = -.05 + Math.sin(clock * 14) * .05; player.rotation.z = Math.sin(clock * 16) * .35; ox = hippoAt.x + .3; oz = hippoAt.z; }
           else if (t < .85) {
-            const q = (t - .5) / .35, start = new THREE.Vector3(hippoAt.x, 0, hippoAt.z + .25);
+            const q = (t - .5) / .35, start = new THREE.Vector3(hippoAt.x + .3, 0, hippoAt.z);
             const p = start.lerp(mouth, q); ox = p.x; oz = p.z; py = p.y + Math.sin(q * Math.PI) * .8;
             player.rotation.set(q * 7, faceAngle, 0); player.scale.setScalar(1 - q * .25);
           } else {
             // body inside the closed jaws, only the head pokes out; eyes shoot out; then down with the hippo
             const sq = t < .95 ? (t - .85) / .1 : 1;
             // held crosswise: head sticks out of one side of the mouth, bottom and kicking feet out of the other
-            ox = hippoAt.x; oz = hippoAt.z + 1.0; py = hippo.position.y + .22 + Math.sin(t * 9) * .015;
-            player.rotation.set(0, Math.PI / 2 + Math.sin(t * 7) * .06, Math.sin(t * 17) * .12);
+            ox = hippoAt.x + 1.25; oz = hippoAt.z + .05; py = hippo.position.y + .24 + Math.sin(t * 9) * .015;
+            player.rotation.set(Math.sin(t * 17) * .1, Math.sin(t * 7) * .08, 0);
             player.scale.set(.7, .7 - sq * .14, .7 + sq * 1.25);
             const kick = Math.sin(t * 26) * .9;
             for (const n of ["fl", "fr"]) { const f = player.getObjectByName(n); if (f) { f.rotation.x = n === "fl" ? kick : -kick; f.position.y = .03 + Math.abs(kick) * .04; } }
             const under = Math.max(0, (t - 2.6) / .6);
             popAmount = t < 1.0 ? 0 : Math.max(0, 1 - under); popT = t - 1.0;
             if (hippo.position.y < -.95) player.visible = false;
-            if (t >= 2.45 && t < 2.48) burst(hippoAt.x, hippoAt.z + .4, .1, "splash");
+            if (t >= 2.45 && t < 2.48) burst(hippoAt.x + .6, hippoAt.z, .1, "splash");
           }
           if (t >= .5 && t < .53) burst(hippoAt.x, hippoAt.z, .1, "splash");
         }
@@ -988,16 +991,19 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       // camera follows the duck in depth
       showcase = state === "menu" || state === "over";
       closeUp = state === "dying" && dieKind === "water" && dieT > .35 && dieT < 3.3;
-      const wantZ = showcase ? cz(pr) - 0.75 : closeUp ? hippoAt.z + .2 : Math.min(ROWS - 5.4, Math.max(4.4, cz(pr) - 3.2));
-      const wantX = showcase ? px : closeUp ? hippoAt.x : COLS / 2 + 0.7;
+      const wantZ = showcase ? cz(pr) - 0.75 : closeUp ? hippoAt.z : Math.min(ROWS - 5.4, Math.max(4.4, cz(pr) - 3.2));
+      const wantX = showcase ? px : closeUp ? hippoAt.x + .7 : COLS / 2 + 0.7;
       camTarget.z += (wantZ - camTarget.z) * Math.min(1, dt * 4);
       camTarget.x += (wantX - camTarget.x) * Math.min(1, dt * 4);
+      camTarget.y += ((closeUp ? .45 : 0) - camTarget.y) * Math.min(1, dt * 4);
     }
     const hf = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
     const fullDist = Math.max(9, (COLS / 2 + 0.6) / Math.tan(hf / 2), 5.6 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
-    camDist += ((showcase ? 4.4 : closeUp ? 5.4 : fullDist) - camDist) * Math.min(1, dt * (closeUp ? 6 : 4) || 1);
+    camDist += ((showcase ? 4.4 : closeUp ? 5 : fullDist) - camDist) * Math.min(1, dt * (closeUp ? 6 : 4) || 1);
     const dist = camDist;
-    const off = new THREE.Vector3(showcase ? 0 : .14, showcase ? .87 : .9, showcase ? .5 : .4).normalize().multiplyScalar(dist);
+    const wantOff = showcase ? new THREE.Vector3(0, .87, .5) : closeUp ? new THREE.Vector3(.45, .32, 1) : new THREE.Vector3(.14, .9, .4);
+    camOff.lerp(wantOff.normalize(), Math.min(1, dt * 3 || 1)).normalize();
+    const off = camOff.clone().multiplyScalar(dist);
     camera.position.copy(camTarget).add(off);
     if (shake > 0) camera.position.add(new THREE.Vector3(rand(-1, 1), rand(-1, 1), 0).multiplyScalar(shake * .4));
     camera.lookAt(camTarget);
