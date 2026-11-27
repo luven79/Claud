@@ -598,66 +598,71 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       ell(r * .3, r * .36, r * .2, 0x0d0d10, sx * dx * 1.04, y - r * .08, z - r * .66, head);
       ell(r * .14, r * .14, r * .08, 0xffffff, sx * dx * 1.04 + r * .2, y + r * .22, z - r * .76, head);
       if (lidColor) lids.push(ell(r * 1.08, r * .55, r * .85, lidColor, sx * dx, y + r * 1.12, z + r * .05, head));
-      const brow = box(r * 1.5, r * .3, r * .35, 0x2a1a14, sx * dx, y + r * 1.55, z - r * .3, head); brow.rotation.z = -sx * .3; brow.name = sx < 0 ? "browL" : "browR";
+      const brow = box(r * 1.4, r * .26, r * .3, 0x2a1a14, sx * dx, y + r * 1.6, z - r * .3, head); brow.rotation.z = sx * .12; brow.name = sx < 0 ? "browL" : "browR";
     }
     return lids;
+  }
+  // closed, smiling mouth: a thin dark arc under the muzzle
+  function smile(head, y, z, w = .05) {
+    const m = new THREE.Mesh(new THREE.TorusGeometry(w, .009, 6, 16, Math.PI), M(0x2a1a14));
+    m.rotation.set(-.35, 0, Math.PI); m.position.set(0, y, z); m.scale.set(1, 1.2, 1); head.add(m); return m;
+  }
+  // flat, pointed leaf-shaped ear
+  function flatEar(parent, color, inner, tip, w, h) {
+    const e = cone(w, h, color, 0, h / 2, 0, parent); e.scale.z = w * .38;
+    const i = cone(w * .62, h * .72, inner, 0, h * .4, -w * .12, parent); i.scale.z = w * .2;
+    if (tip) { const t = cone(w * .42, h * .3, tip, 0, h * .86, .002, parent); t.scale.z = w * .4; }
   }
   function makeFox() {
     const FUR = 0xe8692a, WHITE = 0xfff4ea, BLACK = 0x2a1a14;
     const g = new THREE.Group(), b = new THREE.Group(); g.add(b); g.userData.body = b;
-    for (const sx of [-1, 1]) limb(b, sx * .1, .36, .01, [.085, .1, .095], [.06, .075, .065], [.07, .04, .11, -.04], FUR, BLACK, BLACK, sx < 0 ? "legL" : "legR");
-    const torso = new THREE.Group(); torso.position.y = .36; torso.name = "torso"; b.add(torso);
-    ell(.17, .2, .15, FUR, 0, .15, 0, torso);
-    ell(.12, .15, .07, WHITE, 0, .13, -.1, torso);
-    for (const sx of [-1, 1]) { const a = limb(torso, sx * .17, .28, 0, [.05, .09, .05], [.045, .07, .045], [.055, .05, .05], FUR, BLACK, BLACK, sx < 0 ? "armL" : "armR"); a.rotation.z = sx * .5; }
-    const head = new THREE.Group(); head.position.set(0, .4, -.02); head.name = "head"; torso.add(head);
-    ell(.2, .18, .18, FUR, 0, .03, 0, head);
-    for (const sx of [-1, 1]) { const tuft = cone(.08, .16, WHITE, sx * .19, -.05, -.02, head); tuft.rotation.z = -sx * Math.PI / 2 - sx * .3; }
-    ell(.1, .07, .15, WHITE, 0, -.05, -.17, head);
-    ell(.065, .045, .12, FUR, 0, .0, -.16, head);
-    ell(.035, .03, .03, BLACK, 0, -.01, -.315, head);
-    ell(.085, .075, .11, 0x5a1020, 0, -.12, -.19, head);                          // inside of the mouth
-    for (const sx of [-1, 1]) box(.022, .03, .015, 0xffffff, sx * .03, -.08, -.27, head);
-    const jaw = new THREE.Group(); jaw.position.set(0, -.09, -.08); jaw.name = "jawHinge"; head.add(jaw);
-    ell(.085, .035, .13, WHITE, 0, -.025, -.1, jaw);
-    ell(.055, .02, .09, 0xff6f8e, 0, -.002, -.1, jaw);
-    g.userData.lids = heroEyes(head, .06, -.15, .085, .07, 0xb07818, FUR);
+    for (const sx of [-1, 1]) limb(b, sx * .08, .37, .01, [.062, .1, .07], [.045, .08, .05], [.055, .035, .1, -.04], FUR, BLACK, BLACK, sx < 0 ? "legL" : "legR");
+    const torso = new THREE.Group(); torso.position.y = .37; torso.name = "torso"; b.add(torso);
+    ell(.125, .2, .11, FUR, 0, .16, 0, torso);
+    ell(.085, .15, .05, WHITE, 0, .15, -.075, torso);
+    for (const sx of [-1, 1]) { const a = limb(torso, sx * .13, .29, 0, [.038, .09, .038], [.034, .07, .034], [.044, .04, .04], FUR, BLACK, BLACK, sx < 0 ? "armL" : "armR"); a.rotation.z = sx * .4; }
+    const head = new THREE.Group(); head.position.set(0, .42, -.01); head.name = "head"; torso.add(head);
+    ell(.165, .155, .16, FUR, 0, .03, 0, head);
+    for (const sx of [-1, 1]) { const tuft = cone(.055, .12, WHITE, sx * .155, -.05, -.02, head); tuft.rotation.z = -sx * Math.PI / 2 - sx * .35; tuft.scale.z = .03; }
+    ell(.085, .06, .17, WHITE, 0, -.045, -.15, head);
+    ell(.05, .04, .13, FUR, 0, .0, -.14, head);
+    ell(.03, .026, .026, BLACK, 0, -.012, -.315, head);
+    smile(head, -.075, -.27, .04);
+    const jaw = new THREE.Group(); jaw.name = "jawHinge"; head.add(jaw);           // kept for the animation code
+    g.userData.lids = heroEyes(head, .055, -.13, .072, .062, 0xb07818, FUR);
     for (const sx of [-1, 1]) {
-      const ear = new THREE.Group(); ear.position.set(sx * .12, .17, 0); ear.rotation.z = -sx * .25; ear.name = sx < 0 ? "earL" : "earR"; head.add(ear);
-      cone(.075, .22, FUR, 0, .1, 0, ear); cone(.045, .14, WHITE, 0, .08, -.025, ear); cone(.038, .08, BLACK, 0, .19, 0, ear);
+      const ear = new THREE.Group(); ear.position.set(sx * .1, .15, .02); ear.rotation.set(-.15, 0, -sx * .22); ear.name = sx < 0 ? "earL" : "earR"; head.add(ear);
+      flatEar(ear, FUR, WHITE, BLACK, .075, .22);
     }
-    const tail = new THREE.Group(); tail.position.set(0, .05, .12); tail.name = "tail"; torso.add(tail);
-    [[0, .02, .08, .07, FUR], [0, .08, .17, .1, FUR], [0, .17, .24, .115, FUR], [0, .28, .28, .1, FUR], [0, .37, .29, .075, WHITE]].forEach(([x, y, z, r, c]) => ell(r, r, r * 1.1, c, x, y, z, tail));
+    const tail = new THREE.Group(); tail.position.set(0, .05, .1); tail.name = "tail"; torso.add(tail);
+    [[0, .02, .07, .06, FUR], [0, .08, .15, .085, FUR], [0, .17, .21, .095, FUR], [0, .27, .25, .085, FUR], [0, .35, .26, .065, WHITE]].forEach(([x, y, z, r, c]) => ell(r, r, r * 1.1, c, x, y, z, tail));
     g.userData.hero = "fox";
     return g;
   }
   function makeDog() {
     const FUR = 0xe07a3c, LIGHT = 0xffdcb4, EAR = 0x7a3a1a, NOSE = 0x1b1b1f;
     const g = new THREE.Group(), b = new THREE.Group(); g.add(b); g.userData.body = b;
-    for (const sx of [-1, 1]) limb(b, sx * .11, .35, .01, [.09, .1, .1], [.065, .075, .07], [.08, .045, .12, -.04], FUR, FUR, LIGHT, sx < 0 ? "legL" : "legR");
-    const torso = new THREE.Group(); torso.position.y = .35; torso.name = "torso"; b.add(torso);
-    ell(.18, .2, .16, FUR, 0, .15, 0, torso);
-    ell(.12, .15, .07, LIGHT, 0, .13, -.11, torso);
-    for (const sx of [-1, 1]) { const a = limb(torso, sx * .18, .28, 0, [.055, .09, .055], [.05, .07, .05], [.06, .055, .055], FUR, FUR, LIGHT, sx < 0 ? "armL" : "armR"); a.rotation.z = sx * .5; }
-    const collar = new THREE.Mesh(new THREE.TorusGeometry(.13, .03, 8, 20), M(0xd62828)); collar.rotation.x = Math.PI / 2; collar.position.y = .36; torso.add(collar);
-    ell(.035, .035, .02, 0xf2c230, 0, .32, -.15, torso);
-    const head = new THREE.Group(); head.position.set(0, .42, -.02); head.name = "head"; torso.add(head);
-    ell(.19, .18, .18, FUR, 0, .04, 0, head);
-    ell(.11, .085, .17, LIGHT, 0, -.05, -.17, head);
-    ell(.055, .045, .045, NOSE, 0, -.01, -.33, head);
-    ell(.02, .012, .01, 0xffffff, .015, .01, -.37, head);
-    ell(.095, .08, .12, 0x5a1020, 0, -.13, -.19, head);
-    const jaw = new THREE.Group(); jaw.position.set(0, -.1, -.08); jaw.name = "jawHinge"; head.add(jaw);
-    ell(.095, .04, .13, LIGHT, 0, -.025, -.1, jaw);
-    const tongue = new THREE.Group(); tongue.position.set(0, -.005, -.12); tongue.name = "tongue"; jaw.add(tongue);
-    ell(.05, .018, .1, 0xff6f8e, 0, 0, -.04, tongue); ell(.04, .015, .04, 0xff6f8e, 0, -.02, -.13, tongue);
-    g.userData.lids = heroEyes(head, .08, -.14, .085, .075, 0x5a3418, null);
+    for (const sx of [-1, 1]) limb(b, sx * .085, .36, .01, [.066, .1, .075], [.05, .075, .055], [.06, .04, .1, -.04], FUR, FUR, LIGHT, sx < 0 ? "legL" : "legR");
+    const torso = new THREE.Group(); torso.position.y = .36; torso.name = "torso"; b.add(torso);
+    ell(.135, .2, .12, FUR, 0, .16, 0, torso);
+    ell(.09, .15, .05, LIGHT, 0, .14, -.08, torso);
+    for (const sx of [-1, 1]) { const a = limb(torso, sx * .14, .29, 0, [.042, .09, .042], [.038, .07, .038], [.048, .045, .045], FUR, FUR, LIGHT, sx < 0 ? "armL" : "armR"); a.rotation.z = sx * .4; }
+    const collar = new THREE.Mesh(new THREE.TorusGeometry(.1, .025, 8, 20), M(0xd62828)); collar.rotation.x = Math.PI / 2; collar.position.y = .36; torso.add(collar);
+    ell(.03, .03, .02, 0xf2c230, 0, .32, -.11, torso);
+    const head = new THREE.Group(); head.position.set(0, .43, -.01); head.name = "head"; torso.add(head);
+    ell(.165, .16, .16, FUR, 0, .04, 0, head);
+    ell(.095, .075, .17, LIGHT, 0, -.045, -.15, head);
+    ell(.048, .04, .04, NOSE, 0, -.01, -.31, head);
+    ell(.017, .01, .01, 0xffffff, .013, .008, -.345, head);
+    smile(head, -.085, -.27, .045);
+    const jaw = new THREE.Group(); jaw.name = "jawHinge"; head.add(jaw);
+    g.userData.lids = heroEyes(head, .075, -.12, .075, .066, 0x5a3418, null);
     for (const sx of [-1, 1]) {
-      const ear = new THREE.Group(); ear.position.set(sx * .16, .14, .02); ear.name = sx < 0 ? "earL" : "earR"; head.add(ear);
-      ell(.07, .17, .05, EAR, 0, -.12, 0, ear);
+      const ear = new THREE.Group(); ear.position.set(sx * .14, .13, .02); ear.name = sx < 0 ? "earL" : "earR"; head.add(ear);
+      ell(.06, .16, .035, EAR, 0, -.11, 0, ear);
     }
-    const tail = new THREE.Group(); tail.position.set(0, .08, .14); tail.name = "tail"; torso.add(tail);
-    [[0, .03, .04, .045], [0, .09, .08, .045], [0, .16, .1, .04], [0, .22, .1, .045]].forEach(([x, y, z, r]) => ell(r, r, r, FUR, x, y, z, tail));
+    const tail = new THREE.Group(); tail.position.set(0, .08, .12); tail.name = "tail"; torso.add(tail);
+    [[0, .03, .04, .04], [0, .09, .08, .04], [0, .16, .1, .036], [0, .22, .1, .04]].forEach(([x, y, z, r]) => ell(r, r, r, FUR, x, y, z, tail));
     g.userData.hero = "dog";
     return g;
   }
@@ -667,21 +672,21 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     const legL = n("legL"), legR = n("legR"), armL = n("armL"), armR = n("armR"), head = n("head"), jaw = n("jawHinge"), torso = n("torso");
     const earL = n("earL"), earR = n("earR"), tail = n("tail"), tongue = n("tongue");
     const jump = mode === "jump", hurt = mode === "hurt";
-    torso.position.y = (hero === "dog" ? .35 : .36) + Math.sin(t * 3) * .008;
+    torso.position.y = (hero === "dog" ? .36 : .37) + Math.sin(t * 3) * .008;
     legL.rotation.x = jump ? -.9 * lift : Math.sin(t * 3) * .04; legR.rotation.x = jump ? -.6 * lift : -Math.sin(t * 3) * .04;
     legL.children[1].rotation.x = legR.children[1].rotation.x = jump ? 1.2 * lift : 0;
-    const armUp = jump ? 2.3 * lift + .4 : hurt ? 1.6 + Math.sin(t * 20) * .5 : .5 + Math.sin(t * 2.4) * .12;
+    const armUp = jump ? 2.3 * lift + .35 : hurt ? 1.6 + Math.sin(t * 20) * .5 : .35 + Math.sin(t * 2.4) * .08;
     armL.rotation.z = -armUp; armR.rotation.z = armUp;
     armL.rotation.x = armR.rotation.x = jump ? 0 : Math.sin(t * 2.4) * .2;
     armL.children[1].rotation.x = armR.children[1].rotation.x = -.5;
     head.rotation.x = jump ? -.25 * lift : Math.sin(t * 1.7) * .05; head.rotation.z = Math.sin(t * 1.3) * .08;
     jaw.rotation.x = hurt ? .55 : jump ? .5 + .4 * lift : .38 + Math.max(0, Math.sin(t * 2.6)) * .22;   // laughing
     if (tongue) tongue.rotation.x = .2 + Math.sin(t * 6) * .15;
-    if (hero === "dog") { earL.rotation.z = -.35 - lift * .9 - Math.sin(t * 4) * .05; earR.rotation.z = .35 + lift * .9 + Math.sin(t * 4) * .05; tail.rotation.y = Math.sin(t * 12) * .6; tail.rotation.x = -.4; }
-    else { earL.rotation.x = earR.rotation.x = -lift * .4; tail.rotation.y = Math.sin(t * 2) * .35; tail.rotation.x = -lift * .4; }
+    if (hero === "dog") { earL.rotation.z = -.25 - lift * .9 - Math.sin(t * 4) * .05; earR.rotation.z = .25 + lift * .9 + Math.sin(t * 4) * .05; tail.rotation.y = Math.sin(t * 12) * .6; tail.rotation.x = -.4; }
+    else { earL.rotation.x = earR.rotation.x = -.15 - lift * .4; tail.rotation.y = Math.sin(t * 2) * .35; tail.rotation.x = -lift * .4; }
     const blink = !hurt && ((t * .7) % 3.2) < .12;
-    (g.userData.lids || []).forEach(l => { l.scale.y = blink ? .13 : .03; });
-    for (const nm of ["browL", "browR"]) { const br = n(nm); if (br) br.position.y = .06 + .07 * 1.55 + (jump ? .03 : 0) + (hurt ? .02 : 0); }
+    (g.userData.lids || []).forEach(l => { l.visible = blink; l.scale.y = .13; });
+
   }
   function makeAnimal(kind, s = 1) {
     let g;
