@@ -70,3 +70,25 @@ jobs:
               --title "Prolom kód" \
               --notes "Stáhněte soubor prolomkod.apk do telefonu a otevřete ho – tím se aplikace nainstaluje. Hra pro jednoho, pro dva na jednom telefonu i online proti kamarádovi."
           fi
+
+      - name: Build Kachní cesta APK
+        run: ./gradlew :kachnicesta:assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: kachnicesta-apk
+          path: kachnicesta/build/outputs/apk/release/kachnicesta-release.apk
+
+      - name: Publish Kachní cesta APK as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp kachnicesta/build/outputs/apk/release/kachnicesta-release.apk kachnicesta.apk
+          if gh release view kachnicesta >/dev/null 2>&1; then
+            gh release upload kachnicesta kachnicesta.apk --clobber
+          else
+            gh release create kachnicesta kachnicesta.apk \
+              --target "$GITHUB_SHA" \
+              --title "Kachní cesta" \
+              --notes "Stáhněte soubor kachnicesta.apk do telefonu a otevřete ho – tím se aplikace nainstaluje. 3D hra: doveď zvířátko přes silnici a potok do hnízd. Funguje i bez internetu."
+          fi
