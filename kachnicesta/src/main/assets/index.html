@@ -604,7 +604,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     box(.12, .1, .08, HIPPO_DARK, x * 1.45, .44, -.18, upperJaw);          // ears
   }
   hippo.traverse(o => { if (o.isMesh) o.castShadow = false; });
-  let hippoAt = new THREE.Vector3();
+  let hippoAt = new THREE.Vector3(), popAmount = 0, popT = 0, boinged = false;
 
   // hippos lurking in the rivers: only the top of the head, eyes, ears and nostrils show
   const lurkers = [];
@@ -646,54 +646,64 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       for (const lid of L.m.userData.lids) lid.visible = blink;
     }
   }
-  // cartoon eyes that spring out of the animal's head while the hippo bites
-  function popEyes(target) {
-    let g = target.userData.pop;
-    if (!g) {
-      g = new THREE.Group(); g.userData.eyes = [];
-      for (const x of [-.13, .13]) {
-        const e = new THREE.Group(); e.position.set(x, .64, -.33); g.add(e);
-        const stalk = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, 1, 6), M(0xd94c6a)); e.add(stalk);
-        const ball = new THREE.Mesh(new THREE.SphereGeometry(.17, 12, 10), M(0xffffff)); e.add(ball);
-        const pupil = new THREE.Mesh(new THREE.SphereGeometry(.075, 10, 8), M(0x1b1b1f)); e.add(pupil);
-        const vein = new THREE.Mesh(new THREE.TorusGeometry(.13, .01, 4, 12), M(0xff6b6b)); e.add(vein);
-        g.userData.eyes.push({ stalk, ball, pupil, vein, side: x });
-      }
-      target.add(g); target.userData.pop = g;
-    }
-    return g;
-  }
-  function setPopEyes(target, amount, t) {
-    const g = popEyes(target); g.visible = amount > 0;
-    if (!g.visible) return;
-    for (const e of g.userData.eyes) {
-      const wob = Math.sin(t * 28 + e.side * 20) * Math.exp(-t * 1.5) * .25;
-      const len = amount * (.9 + wob);
-      const dir = new THREE.Vector3(e.side * 2.2, 1.3, -.9).normalize();
-      const tip = dir.clone().multiplyScalar(len);
-      e.stalk.scale.y = Math.max(.01, len); e.stalk.position.copy(tip).multiplyScalar(.5);
-      e.stalk.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
-      e.ball.position.copy(tip); e.vein.position.copy(tip);
-      e.pupil.position.copy(tip).add(new THREE.Vector3(Math.sin(t * 13 + e.side * 9) * .05, .1 + Math.cos(t * 11) * .04, -.12));
+  // cartoon eyes that shoot out of the animal's head towards the viewer while the hippo bites
+  const popGroup = new THREE.Group(); popGroup.visible = false; scene.add(popGroup);
+  const popEyes = [-1, 1].map(side => {
+    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(.045, .06, 1, 8), new THREE.MeshLambertMaterial({ color: 0xe05a7a }));
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(.3, 18, 14), new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x222222 }));
+    const iris = new THREE.Mesh(new THREE.SphereGeometry(.15, 14, 10), new THREE.MeshLambertMaterial({ color: 0x2b7bd6 }));
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(.09, 12, 10), new THREE.MeshBasicMaterial({ color: 0x0a0a0a }));
+    const shine = new THREE.Mesh(new THREE.SphereGeometry(.035, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+    const veins = new THREE.Group();
+    for (let i = 0; i < 5; i++) { const v = new THREE.Mesh(new THREE.BoxGeometry(.012, .22, .012), new THREE.MeshBasicMaterial({ color: 0xff3b3b })); v.rotation.z = i * 1.25; v.position.set(Math.cos(i * 1.25) * .2, Math.sin(i * 1.25) * .2, 0); veins.add(v); }
+    [stalk, ball, iris, pupil, shine, veins].forEach(o => popGroup.add(o));
+    return { side, stalk, ball, iris, pupil, shine, veins };
+  });
+  const UP = new THREE.Vector3(0, 1, 0);
+  function placePopEyes(amount, t) {
+    popGroup.visible = amount > 0 && player.visible;
+    if (!popGroup.visible) return;
+    player.updateMatrixWorld(true);
+    const head = player.localToWorld(new THREE.Vector3(0, .62, -.3));
+    const toCam = camera.position.clone().sub(head).normalize();
+    const right = new THREE.Vector3().crossVectors(toCam, UP).normalize();
+    const spring = 1 - Math.exp(-5 * t) * Math.cos(16 * t);              // shoots out, overshoots, wobbles
+    const len = amount * 1.05 * spring;
+    for (const e of popEyes) {
+      const wob = Math.sin(t * 24 + e.side * 3) * Math.exp(-t * 1.2) * .35;
+      const dir = toCam.clone().add(right.clone().multiplyScalar(e.side * (.3 + wob * .3))).add(UP.clone().multiplyScalar(.15 + wob * .3)).normalize();
+      const tip = head.clone().add(right.clone().multiplyScalar(e.side * .13)).add(dir.clone().multiplyScalar(Math.max(.05, len)));
+      const base = head.clone().add(right.clone().multiplyScalar(e.side * .13));
+      e.stalk.position.copy(base).lerp(tip, .5);
+      e.stalk.scale.set(1, Math.max(.02, base.distanceTo(tip)), 1);
+      e.stalk.quaternion.setFromUnitVectors(UP, tip.clone().sub(base).normalize());
+      const size = .3 + amount * .45;
+      e.ball.position.copy(tip); e.ball.scale.setScalar(size);
+      const look = toCam.clone().multiplyScalar(.24 * size);
+      const jitter = new THREE.Vector3(Math.sin(t * 19 + e.side) * .04, Math.cos(t * 23) * .04, 0);
+      e.iris.position.copy(tip).add(look).add(jitter); e.iris.scale.setScalar(size);
+      e.pupil.position.copy(tip).add(toCam.clone().multiplyScalar(.31 * size)).add(jitter); e.pupil.scale.setScalar(size);
+      e.shine.position.copy(e.pupil.position).add(new THREE.Vector3(.04, .05, 0).multiplyScalar(size)).add(toCam.clone().multiplyScalar(.05));
+      e.veins.position.copy(tip).add(toCam.clone().multiplyScalar(.2 * size)); e.veins.lookAt(camera.position); e.veins.scale.setScalar(size);
     }
   }
   function hippoAnim(t) {
     // 0–.5 rise with mouth opening · .5–.85 animal drops in · .85–.95 snap · .95–1.9 animal stuck, eyes pop out
     // 1.9–2.3 gulp · 2.3–3.0 sink
-    const rise = Math.min(1, t / .5), sink = Math.max(0, (t - 2.3) / .7);
+    const rise = Math.min(1, t / .5), sink = Math.max(0, (t - 3.0) / .7);
     hippo.position.set(hippoAt.x, -1.3 + rise * 1.15 - sink * 1.4 + Math.sin(clock * 3) * .02, hippoAt.z);
     let open = 0;
     if (t < .5) open = rise * 1.05; else if (t < .85) open = 1.05; else if (t < .95) open = 1.05 - (t - .85) / .1 * .8;
-    else if (t < 1.9) open = .25 + Math.sin(t * 9) * .02;           // jaws clamped on the animal
-    else if (t < 2.05) open = .25 + (t - 1.9) / .15 * .35;           // open a bit to gulp
-    else if (t < 2.15) open = .6 * (1 - (t - 2.05) / .1);
-    else if (t < 2.3) open = Math.max(0, Math.sin((t - 2.15) * 30)) * .15;
+    else if (t < 2.6) open = .25 + Math.sin(t * 9) * .02;           // jaws clamped on the animal
+    else if (t < 2.75) open = .25 + (t - 2.6) / .15 * .35;           // open a bit to gulp
+    else if (t < 2.85) open = .6 * (1 - (t - 2.75) / .1);
+    else if (t < 3.0) open = Math.max(0, Math.sin((t - 2.85) * 30)) * .15;
     upperJaw.rotation.x = -open;
     hippo.rotation.y = Math.sin(clock * 2) * .08;
   }
 
   // ---- deaths: each kind has its own animation; a bike crash throws the animal under the next vehicle ----
-  const DIE_TIME = { car: 1.6, truck: 1.5, water: 3.0, time: 1.1, reeds: 1.1 };
+  const DIE_TIME = { car: 1.6, truck: 1.5, water: 3.7, time: 1.1, reeds: 1.1 };
   let dieT = 0, dieFrom = new THREE.Vector3(), toss = null, crashedBike = null;
   const splats = [];
   const furOf = () => ANIMALS.find(a => a.id === animalId).fur;
@@ -726,7 +736,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     state = "dying"; dieT = 0;
     if (kind !== "hit") {
       dieKind = kind; shake = .15;
-      if (kind === "water") { hippoAt.set(Math.min(COLS - .6, Math.max(.6, duck.x + .5)), 0, cz(duck.row) - .25); hippo.visible = true; hippoAnim(0); }
+      if (kind === "water") { boinged = false; hippoAt.set(Math.min(COLS - .6, Math.max(.6, duck.x + .5)), 0, cz(duck.row) - .25); hippo.visible = true; hippoAnim(0); }
       burst(duck.x + .5, cz(duck.row), .4, kind === "water" ? "splash" : "feather", furOf());
       if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
       return;
@@ -757,7 +767,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
   }
   function afterDeath() {
-    hippo.visible = false; if (player.userData.pop) player.userData.pop.visible = false;
+    hippo.visible = false; popGroup.visible = false;
     if (crashedBike) { crashedBike.crashed = false; crashedBike = null; }
     toss = null; player.rotation.set(0, faceAngle, 0);
     lives--; updateHud();
@@ -845,7 +855,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
   // ================= RENDER =================
   const camTarget = new THREE.Vector3(5.5, 0, START_ROW - 1.1);
-  let camDist = 5.2, showcase = true;
+  let camDist = 5.2, showcase = true, closeUp = false;
   function layout() {
     const w = stage.clientWidth;
     const h = Math.max(300, Math.min(window.innerHeight - 270, w * 1.12));
@@ -908,7 +918,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       faceAngle += d * Math.min(1, dt * 18);
       player.rotation.set(0, state === "menu" || state === "over" ? Math.PI + Math.sin(clock * .8) * .6 : faceAngle, 0);
       const b = player.userData.body;
-      let ox = null, oz = null;
+      let ox = null, oz = null; popAmount = 0;
       if (state === "dying") {
         const k = Math.min(1, dieT / (DIE_TIME[dieKind] || 1.2));
         player.visible = true;
@@ -943,19 +953,19 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
             const q = (t - .5) / .35, start = new THREE.Vector3(hippoAt.x, 0, hippoAt.z + .25);
             const p = start.lerp(mouth, q); ox = p.x; oz = p.z; py = p.y + Math.sin(q * Math.PI) * .8;
             player.rotation.set(q * 7, faceAngle, 0); player.scale.setScalar(1 - q * .25);
-          } else if (t < 2.05) {
-            // clamped in the jaws, facing the viewer, eyes popping out on springs
+          } else if (t < 2.75) {
+            // clamped in the jaws, facing the viewer; eyes shoot out on springs
             const sq = t < .95 ? (t - .85) / .1 : 1;
             ox = hippoAt.x; oz = hippoAt.z + .7; py = .5 + Math.sin(t * 9) * .02;
             player.rotation.set(-.25, Math.PI + Math.sin(t * 22) * .12, Math.sin(t * 17) * .08);
             player.scale.set(.9, .9 - sq * .2, .9);
-            setPopEyes(player, Math.min(1, Math.max(0, (t - .9) / .12)), t - .9);
-          } else if (t < 2.2) {
-            // gulp: pulled back into the mouth
-            const q = (t - 2.05) / .15;
-            ox = hippoAt.x; oz = hippoAt.z + .84 - q * .6; py = .32 - q * .2;
-            player.scale.setScalar(.8 * (1 - q)); setPopEyes(player, 1 - q, t - .9);
-          } else { player.visible = false; setPopEyes(player, 0, 0); }
+            popAmount = t < 1.0 ? 0 : 1; popT = t - 1.0;
+            if (t >= 1.0 && !boinged) { boinged = true; popup("BOING!", hippoAt.x, 2.2, hippoAt.z + .8); }
+          } else if (t < 2.9) {
+            const q = (t - 2.75) / .15;
+            ox = hippoAt.x; oz = hippoAt.z + .7 - q * .5; py = .5 - q * .3;
+            player.scale.setScalar(.9 * (1 - q)); popAmount = 1 - q; popT = t - 1.0;
+          } else { player.visible = false; }
           if (t >= .5 && t < .53) burst(hippoAt.x, hippoAt.z, .1, "splash");
         }
         else { player.rotation.y = faceAngle + k * 12; py = Math.sin(k * Math.PI) * .5; }
@@ -967,18 +977,20 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         b.rotation.z = h === 1 ? Math.sin(clock * 3) * .03 : 0;
       }
       player.position.set(ox !== null ? ox : px, py, oz !== null ? oz : cz(pr));
+      placePopEyes(popAmount, popT);
       blob.position.set(px, .01, cz(pr)); blob.scale.setScalar(1 - lift * .35); blob.visible = !(lane && lane.type === "river" && h === 1) && state !== "dying";
 
       // camera follows the duck in depth
       showcase = state === "menu" || state === "over";
-      const wantZ = showcase ? cz(pr) - 0.75 : Math.min(ROWS - 5.4, Math.max(4.4, cz(pr) - 3.2));
-      const wantX = showcase ? px : COLS / 2 + 0.7;
+      closeUp = state === "dying" && dieKind === "water" && dieT > .35 && dieT < 3.0;
+      const wantZ = showcase ? cz(pr) - 0.75 : closeUp ? hippoAt.z + .2 : Math.min(ROWS - 5.4, Math.max(4.4, cz(pr) - 3.2));
+      const wantX = showcase ? px : closeUp ? hippoAt.x : COLS / 2 + 0.7;
       camTarget.z += (wantZ - camTarget.z) * Math.min(1, dt * 4);
       camTarget.x += (wantX - camTarget.x) * Math.min(1, dt * 4);
     }
     const hf = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
     const fullDist = Math.max(9, (COLS / 2 + 0.6) / Math.tan(hf / 2), 5.6 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
-    camDist += ((showcase ? 4.4 : fullDist) - camDist) * Math.min(1, dt * 4 || 1);
+    camDist += ((showcase ? 4.4 : closeUp ? 5.4 : fullDist) - camDist) * Math.min(1, dt * (closeUp ? 6 : 4) || 1);
     const dist = camDist;
     const off = new THREE.Vector3(showcase ? 0 : .14, showcase ? .87 : .9, showcase ? .5 : .4).normalize().multiplyScalar(dist);
     camera.position.copy(camTarget).add(off);
