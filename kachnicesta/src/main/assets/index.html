@@ -1025,23 +1025,29 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   // ---- hippo that eats animals falling into the water ----
   const HIPPO = 0x8a7fa0, HIPPO_DARK = 0x6f6487;
   const hippo = new THREE.Group(); hippo.visible = false; hippo.scale.setScalar(1.35); scene.add(hippo);
-  box(1.15, .7, 1.1, HIPPO, 0, -.45, -.55, hippo);                       // body (mostly under water)
-  box(.95, .28, .75, HIPPO, 0, -.02, .2, hippo);                          // lower jaw
-  box(.8, .06, .6, 0xff8fa8, 0, .13, .22, hippo);                          // tongue
-  for (const x of [-.32, .32]) box(.1, .16, .09, 0xffffff, x, .2, .5, hippo);
+  // round, friendly hippo (snout towards +z); the upper jaw hinges open
+  const HIPPO_SNOUT = 0xa497bd, HIPPO_PINK = 0xf08aa4;
+  ell(.66, .46, .62, HIPPO, 0, -.42, -.5, hippo);                          // body, mostly under water
+  ell(.5, .15, .44, HIPPO, 0, -.03, .26, hippo);                           // lower jaw
+  ell(.4, .06, .32, 0x7a1a32, 0, .07, .28, hippo);                         // inside of the mouth
+  ell(.28, .05, .22, HIPPO_PINK, 0, .1, .26, hippo);                       // tongue
+  for (const x of [-.3, .3]) cone(.055, .13, 0xffffff, x, .16, .56, hippo);
   const upperJaw = new THREE.Group(); upperJaw.position.set(0, .14, -.12); hippo.add(upperJaw);
-  box(1.0, .36, .86, HIPPO, 0, .19, .34, upperJaw);
-  box(.84, .05, .7, 0xe0607e, 0, .0, .34, upperJaw);                       // roof of the mouth
-  for (const x of [-.32, .32]) box(.1, .14, .09, 0xffffff, x, -.07, .68, upperJaw);
-  for (const x of [-.16, .16]) box(.1, .06, .1, 0x3a3048, x, .38, .66, upperJaw);   // nostrils
+  ell(.52, .32, .48, HIPPO, 0, .22, .18, upperJaw);                         // head
+  ell(.5, .2, .3, HIPPO_SNOUT, 0, .12, .56, upperJaw);                      // wide snout
+  ell(.42, .05, .32, 0xd9607e, 0, -.02, .48, upperJaw);                     // roof of the mouth
+  for (const x of [-.3, .3]) { const t = cone(.05, .12, 0xffffff, x, -.06, .74, upperJaw); t.rotation.x = Math.PI; }
+  for (const x of [-.17, .17]) ell(.065, .035, .05, 0x3a3048, x, .3, .78, upperJaw);   // nostrils
+  for (const x of [-.4, .4]) ell(.1, .05, .06, HIPPO_PINK, x, .14, .58, upperJaw, { transparent: true, opacity: .8 });   // cheeks
   const hippoLids = [];
-  for (const x of [-.27, .27]) {
-    const lid = box(.23, .23, .21, HIPPO_DARK, x, .46, .02, upperJaw); lid.visible = false; hippoLids.push(lid);      // closed, happy eye
-    for (const [dx, dy] of [[-.06, -.02], [0, .01], [.06, -.02]]) { const c = box(.06, .03, .03, 0x2a2238, x + dx, .5 + dy, .13, upperJaw); c.visible = false; hippoLids.push(c); }
-    for (const [dx, dy] of [[-.06, -.02], [0, .01], [.06, -.02]]) { const c = box(.06, .03, .03, 0x2a2238, x + dx, .58 + dy, .02, upperJaw); c.visible = false; hippoLids.push(c); }
-    box(.2, .2, .18, 0xffffff, x, .46, .02, upperJaw);
-    box(.09, .11, .04, 0x1b1b1f, x, .47, .12, upperJaw);
-    box(.12, .1, .08, HIPPO_DARK, x * 1.45, .44, -.18, upperJaw);          // ears
+  for (const x of [-.24, .24]) {
+    ell(.12, .13, .1, 0xffffff, x, .5, .1, upperJaw);
+    ell(.055, .065, .03, 0x1b1b1f, x, .52, .19, upperJaw);
+    ell(.02, .02, .01, 0xffffff, x + .02, .55, .215, upperJaw);
+    const lid = ell(.13, .14, .11, HIPPO_DARK, x, .5, .1, upperJaw); lid.visible = false; hippoLids.push(lid);   // happy, closed eye
+    const lash = new THREE.Mesh(new THREE.TorusGeometry(.07, .012, 6, 12, Math.PI), M(0x2a2238)); lash.rotation.set(0, 0, Math.PI); lash.position.set(x, .53, .21); lash.visible = false; upperJaw.add(lash); hippoLids.push(lash);
+    ell(.08, .07, .05, HIPPO_DARK, x * 1.55, .48, -.12, upperJaw);           // ears
+    ell(.045, .04, .02, HIPPO_PINK, x * 1.55, .48, -.09, upperJaw);
   }
   hippo.traverse(o => { if (o.isMesh) o.castShadow = false; });
   outline(hippo, .03);
@@ -1053,17 +1059,18 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   // hippos lurking in the rivers: only the top of the head, eyes, ears and nostrils show
   const lurkers = [];
   function makeLurker() {
+    // just the top of a hippo's head above the water: rounded skull, snout, nostrils, ears and eyes
     const g = new THREE.Group(), head = new THREE.Group(); g.add(head);
-    box(.72, .2, .62, HIPPO, 0, -.06, 0, head);
-    box(.5, .14, .26, HIPPO, 0, -.04, .34, head);
-    for (const x of [-.12, .12]) box(.08, .05, .08, 0x3a3048, x, .04, .42, head);
+    ell(.36, .14, .32, HIPPO, 0, -.06, 0, head);
+    ell(.28, .1, .16, HIPPO_SNOUT, 0, -.05, .3, head);
+    for (const x of [-.1, .1]) ell(.04, .02, .03, 0x3a3048, x, .04, .42, head);
     const lids = [];
-    for (const x of [-.2, .2]) {
-      box(.22, .2, .2, 0xffffff, x, .1, .05, head);
-      box(.1, .03, .1, 0x1b1b1f, x, .205, .09, head);                     // pupil on top, visible from above
-      box(.08, .1, .03, 0x1b1b1f, x, .12, .16, head);                      // pupil, front
-      const lid = box(.24, .23, .22, HIPPO_DARK, x, .1, .05, head); lid.visible = false; lids.push(lid);
-      box(.1, .09, .07, HIPPO_DARK, x * 1.6, .1, -.2, head);
+    for (const x of [-.17, .17]) {
+      ell(.1, .1, .09, 0xffffff, x, .08, .04, head);
+      ell(.05, .05, .03, 0x1b1b1f, x, .12, .1, head);
+      ell(.018, .018, .01, 0xffffff, x + .02, .15, .12, head);
+      const lid = ell(.11, .11, .1, HIPPO_DARK, x, .08, .04, head); lid.visible = false; lids.push(lid);
+      ell(.06, .05, .04, HIPPO_DARK, x * 1.7, .08, -.16, head);
     }
     g.userData = { head, lids }; g.scale.setScalar(1.25);
     g.traverse(o => { if (o.isMesh) o.castShadow = false; });
