@@ -14,4 +14,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "Piskvorky"
-include(":app", ":game")
+include(":app", ":game", ":prolomkod")

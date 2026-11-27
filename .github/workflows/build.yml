@@ -48,3 +48,25 @@ jobs:
               --title "Piškvorky" \
               --notes "Stáhněte soubor piskvorky.apk do telefonu a otevřete ho – tím se aplikace nainstaluje."
           fi
+
+      - name: Build Prolom kód APK
+        run: ./gradlew :prolomkod:assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: prolomkod-apk
+          path: prolomkod/build/outputs/apk/release/prolomkod-release.apk
+
+      - name: Publish Prolom kód APK as a release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp prolomkod/build/outputs/apk/release/prolomkod-release.apk prolomkod.apk
+          if gh release view prolomkod >/dev/null 2>&1; then
+            gh release upload prolomkod prolomkod.apk --clobber
+          else
+            gh release create prolomkod prolomkod.apk \
+              --target "$GITHUB_SHA" \
+              --title "Prolom kód" \
+              --notes "Stáhněte soubor prolomkod.apk do telefonu a otevřete ho – tím se aplikace nainstaluje. Hra pro jednoho, pro dva na jednom telefonu i online proti kamarádovi."
+          fi

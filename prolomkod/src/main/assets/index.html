@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Prolom kód</title>
+<style>
+:root {
+  --bg: #e9ecef; --fg: #1d232a; --muted: #5d6873; --tray: #b9c0c7; --tray-edge: #9aa3ac;
+  --hole: #8e979f; --accent: #e8590c; --active: #fff4ec; --card: #f8f9fa; --ok: #2b8a3e; --bad: #c92a2a;
+  --display: "Roboto Condensed", "Segoe UI", system-ui, sans-serif;
+  --body: system-ui, "Roboto", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #15191d; --fg: #e8ecef; --muted: #98a3ad; --tray: #3a424a; --tray-edge: #2b3238;
+    --hole: #20262b; --accent: #ff8a3d; --active: #4a3a30; --card: #1f252a; --ok: #69db7c; --bad: #ff8787; color-scheme: dark; }
+}
+[hidden] { display: none !important; }
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; padding: 16px 16px 28px; user-select: none; }
+.wrap { max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+header { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+h1 { font-family: var(--display); font-size: 1.9rem; margin: 0; letter-spacing: .02em; font-weight: 800; }
+h1 span { color: var(--accent); }
+.status { color: var(--muted); font-size: .95rem; min-height: 1.3em; }
+.status.win { color: var(--ok); font-weight: 600; }
+.status.lose { color: var(--bad); font-weight: 600; }
+.status.turn { color: var(--accent); font-weight: 600; }
+
+.card { background: var(--card); border: 1px solid var(--tray-edge); border-radius: 14px; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.card h2 { font-family: var(--display); font-size: 1.15rem; margin: 0; }
+.card p { margin: 0; color: var(--muted); line-height: 1.5; }
+.names { display: flex; gap: 8px; }
+.names input { flex: 1; min-width: 0; font: inherit; padding: 10px 12px; border-radius: 10px; border: 2px solid var(--tray-edge); background: var(--bg); color: var(--fg); user-select: text; }
+.names input:focus { outline: none; border-color: var(--accent); }
+
+.info { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.room { font-family: var(--display); font-size: .9rem; color: var(--muted); }
+.scores { display: flex; gap: 8px; flex-wrap: wrap; }
+.chip { font-size: .85rem; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--tray-edge); background: var(--card); font-variant-numeric: tabular-nums; }
+.chip.on { border-color: var(--accent); }
+
+.board { background: var(--tray); border: 2px solid var(--tray-edge); border-radius: 14px; padding: 10px; display: flex; flex-direction: column; gap: 4px; }
+.row { display: grid; grid-template-columns: 30px 1fr 46px; align-items: center; gap: 10px; padding: 5px 8px; border-radius: 9px; }
+.row.current { background: var(--active); outline: 2px solid var(--accent); }
+.num { font-family: var(--display); color: var(--muted); font-size: .8rem; text-align: right; font-variant-numeric: tabular-nums; }
+.holes { display: flex; gap: 10px; }
+.secret { background: var(--tray-edge); margin-bottom: 6px; }
+.secret .num { font-size: .7rem; }
+
+.peg { width: 32px; height: 32px; border-radius: 50%; border: none; padding: 0; flex: none; background: var(--hole); box-shadow: inset 0 2px 4px rgba(0,0,0,.35); font: inherit; color: transparent; }
+.peg[data-c] { box-shadow: 0 2px 3px rgba(0,0,0,.35); }
+.peg.hidden { background: repeating-linear-gradient(45deg, #59616a 0 5px, #4b525a 5px 10px); color: #e8ecef; font-family: var(--display); font-size: .9rem; display: grid; place-items: center; }
+[data-c="0"] { background: radial-gradient(circle at 35% 30%, #ff8787, #e03131 55%, #a61e1e); }
+[data-c="1"] { background: radial-gradient(circle at 35% 30%, #fff3a0, #fcc419 55%, #c48a00); }
+[data-c="2"] { background: radial-gradient(circle at 35% 30%, #8ce99a, #2f9e44 55%, #1b6b2c); }
+[data-c="3"] { background: radial-gradient(circle at 35% 30%, #a5d8ff, #1c7ed6 55%, #0f4f8a); }
+[data-c="4"] { background: radial-gradient(circle at 35% 30%, #ffffff, #e9ecef 55%, #adb5bd); }
+[data-c="5"] { background: radial-gradient(circle at 35% 30%, #6c757d, #212529 55%, #000); }
+
+.fb { display: grid; grid-template-columns: repeat(2, 14px); gap: 4px; justify-content: end; }
+.fb i { width: 14px; height: 14px; border-radius: 50%; background: var(--hole); box-shadow: inset 0 1px 2px rgba(0,0,0,.4); }
+.fb i.b { background: #111; box-shadow: 0 0 0 1px #888; }
+.fb i.w { background: #fff; box-shadow: 0 0 0 1px #888; }
+
+.palette { display: flex; justify-content: space-between; gap: 8px; background: var(--tray); border: 2px solid var(--tray-edge); border-radius: 14px; padding: 12px; }
+.palette .peg { width: 44px; height: 44px; }
+.palette .peg:disabled { opacity: .35; }
+
+.actions { display: flex; gap: 10px; align-items: center; }
+.btn { font-family: var(--display); font-weight: 800; font-size: 1rem; letter-spacing: .06em; text-transform: uppercase; padding: 13px 18px; border-radius: 10px; border: 2px solid var(--accent); background: var(--accent); color: #fff; flex: 1; }
+.btn.ghost { background: transparent; color: var(--accent); flex: 0 0 auto; }
+.btn:disabled { opacity: .45; }
+.opt { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
+.opt input { width: 20px; height: 20px; accent-color: var(--accent); }
+
+.cover { position: fixed; inset: 0; background: var(--bg); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 24px; text-align: center; z-index: 5; }
+.cover h2 { font-family: var(--display); font-size: 1.6rem; margin: 0; }
+.cover p { color: var(--muted); margin: 0; max-width: 300px; line-height: 1.5; }
+.cover .btn { flex: 0 0 auto; min-width: 220px; }
+
+.names input.code { font-family: var(--display); font-size: 1.15rem; letter-spacing: .25em; text-transform: uppercase; }
+.err { color: var(--bad); font-size: .9rem; min-height: 1.2em; }
+.conn { font-size: .85rem; color: var(--bad); }
+.conn.ok { color: var(--ok); }
+.room b { color: var(--fg); letter-spacing: .2em; font-size: 1.1rem; }
+details { color: var(--muted); font-size: .9rem; line-height: 1.55; }
+summary { color: var(--fg); font-weight: 600; }
+.legend { display: inline-flex; width: 12px; height: 12px; border-radius: 50%; vertical-align: -1px; box-shadow: 0 0 0 1px #888; }
+
+@media (max-width: 370px) {
+  .peg { width: 27px; height: 27px; }
+  .holes { gap: 7px; }
+  .palette .peg { width: 38px; height: 38px; }
+}
+.row.current .peg[data-c] { animation: pop .15s ease-out; }
+@keyframes pop { from { transform: scale(.7); } to { transform: scale(1); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Prolom <span>kód</span></h1>
+    <button class="btn ghost" id="menuBtn" type="button" hidden>Menu</button>
+  </header>
+
+  <section id="menu" class="wrap" style="margin:0">
+    <div class="card">
+      <h2>Online proti kamarádovi</h2>
+      <p>Každý hraje na svém telefonu přes internet. Jeden hru založí a pošle kód, druhý ho zadá.</p>
+      <div class="names"><input id="myName" maxlength="14" placeholder="Tvoje jméno" aria-label="Tvoje jméno"></div>
+      <button class="btn" id="create" type="button">Založit online hru</button>
+      <div class="names">
+        <input id="codeIn" class="code" maxlength="5" placeholder="KÓD HRY" aria-label="Kód hry" autocomplete="off" autocapitalize="characters">
+        <button class="btn ghost" id="joinBtn" type="button">Připojit</button>
+      </div>
+      <button class="btn ghost" id="resume" type="button" hidden></button>
+      <div class="err" id="err" aria-live="polite"></div>
+    </div>
+    <div class="card">
+      <h2>Dva hráči na jednom telefonu</h2>
+      <p>Jeden vymyslí tajný kód, druhý ho luští. Po každém kole se role vymění. Kdo vymýšlí, dostane bod za každý pokus soupeře.</p>
+      <div class="names">
+        <input id="n1" maxlength="14" placeholder="Hráč 1" aria-label="Jméno prvního hráče">
+        <input id="n2" maxlength="14" placeholder="Hráč 2" aria-label="Jméno druhého hráče">
+      </div>
+      <button class="btn" id="duo" type="button">Hrát ve dvou</button>
+    </div>
+    <div class="card">
+      <h2>Hra pro jednoho</h2>
+      <p>Kód vymyslí telefon a ty máš 10 pokusů.</p>
+      <button class="btn ghost" id="solo" type="button">Hrát sám</button>
+    </div>
+    <label class="opt"><input type="checkbox" id="dupes" checked> Barvy se v kódu můžou opakovat</label>
+  </section>
+
+  <section id="game" class="wrap" style="margin:0" hidden>
+    <div class="info">
+      <div class="room" id="room"></div>
+      <div class="scores" id="scores"></div>
+    </div>
+    <div class="status" id="status" aria-live="polite"></div>
+    <div class="actions" id="shareRow" hidden>
+      <button class="btn ghost" id="shareBtn" type="button" style="flex:1">Poslat kód kamarádovi</button>
+    </div>
+    <div class="conn" id="conn" hidden></div>
+    <div class="board" id="board"></div>
+    <div class="palette" id="palette" aria-label="Barvy"></div>
+    <div class="actions">
+      <button class="btn ghost" id="undo" type="button">Smazat</button>
+      <button class="btn" id="primary" type="button">Zkontrolovat</button>
+    </div>
+  </section>
+
+  <details>
+    <summary>Pravidla</summary>
+    <p>Tajný kód má 4 barevné kuličky ze 6 barev. Luštitel má 10 pokusů. Kuličku přidáš ťuknutím na barvu dole, ťuknutím na kuličku v řádku ji odebereš.</p>
+    <p>Po každém tipu se vpravo ukáže hodnocení:<br>
+      <span class="legend" style="background:#111"></span> správná barva na správném místě<br>
+      <span class="legend" style="background:#fff"></span> správná barva, ale na jiném místě<br>
+      Pořadí hodnoticích kolíčků neříká, ke které kuličce patří.</p>
+    <p>Body ve dvou: kdo vymýšlí kód, dostane bod za každý pokus soupeře. Když soupeř kód neprolomí, dostane 11. Po sudém počtu kol vyhrává ten, kdo má víc bodů.</p>
+  </details>
+</div>
+
+<div class="cover" id="cover" hidden>
+  <h2 id="coverTitle"></h2>
+  <p id="coverText"></p>
+  <button class="btn" id="coverBtn" type="button"></button>
+</div>
+
+<script src="mqtt.min.js"></script>
+<script>
+(() => {
+  const NAMES = ["červená", "žlutá", "zelená", "modrá", "bílá", "černá"];
+  const SLOTS = 4, ROWS = 10;
+  const $ = id => document.getElementById(id);
+  const boardEl = $("board"), paletteEl = $("palette"), statusEl = $("status");
+
+  let mode = null;   // "solo" | "duo"
+  let current = [];
+  let solo = null;   // {secret, guesses, over}
+  let g = null;      // duo: {players, setter, status, secret, guesses, points, round, dupes}
+
+  function score(secret, guess) {
+    let black = 0, white = 0;
+    const sc = [0,0,0,0,0,0], gc = [0,0,0,0,0,0];
+    guess.forEach((c, i) => { if (c === secret[i]) black++; else { sc[secret[i]]++; gc[c]++; } });
+    for (let c = 0; c < 6; c++) white += Math.min(sc[c], gc[c]);
+    return { black, white };
+  }
+  function randomSecret(dupes) {
+    const pool = [0,1,2,3,4,5], s = [];
+    for (let i = 0; i < SLOTS; i++) s.push(dupes ? Math.floor(Math.random() * 6) : pool.splice(Math.floor(Math.random() * pool.length), 1)[0]);
+    return s;
+  }
+  function setStatus(text, cls) { statusEl.textContent = text; statusEl.className = "status" + (cls ? " " + cls : ""); }
+  function peg(c, button) {
+    const el = document.createElement(button ? "button" : "div");
+    el.className = "peg";
+    if (button) el.type = "button";
+    if (c !== undefined && c !== null) { el.dataset.c = c; el.setAttribute("aria-label", NAMES[c]); }
+    return el;
+  }
+  function hiddenPeg() { const p = peg(); p.classList.add("hidden"); p.textContent = "?"; return p; }
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
+
+  function drawBoard(v) {
+    boardEl.innerHTML = "";
+    const sr = document.createElement("div");
+    sr.className = "row secret" + (v.editSecret ? " current" : "");
+    const lab = document.createElement("div"); lab.className = "num"; lab.textContent = "KÓD";
+    const sh = document.createElement("div"); sh.className = "holes";
+    for (let i = 0; i < SLOTS; i++) {
+      if (v.editSecret) sh.appendChild(editablePeg(i));
+      else if (v.secret && v.showSecret) sh.appendChild(peg(v.secret[i]));
+      else sh.appendChild(hiddenPeg());
+    }
+    sr.append(lab, sh, document.createElement("div"));
+    boardEl.appendChild(sr);
+    const guesses = v.guesses || [];
+    for (let r = ROWS - 1; r >= 0; r--) {
+      const row = document.createElement("div"); row.className = "row";
+      const isCur = v.editGuess && r === guesses.length;
+      if (isCur) row.classList.add("current");
+      const n = document.createElement("div"); n.className = "num"; n.textContent = r + 1;
+      const holes = document.createElement("div"); holes.className = "holes";
+      const fb = document.createElement("div"); fb.className = "fb";
+      if (r < guesses.length) {
+        const q = guesses[r];
+        q.g.forEach(c => holes.appendChild(peg(c)));
+        const marks = [...Array(q.b).fill("b"), ...Array(q.w).fill("w")];
+        for (let i = 0; i < SLOTS; i++) { const m = document.createElement("i"); if (marks[i]) m.className = marks[i]; fb.appendChild(m); }
+      } else {
+        for (let i = 0; i < SLOTS; i++) holes.appendChild(isCur ? editablePeg(i) : peg());
+        for (let i = 0; i < SLOTS; i++) fb.appendChild(document.createElement("i"));
+      }
+      row.append(n, holes, fb);
+      boardEl.appendChild(row);
+    }
+  }
+  function editablePeg(i) {
+    if (current[i] === undefined) return peg();
+    const p = peg(current[i], true);
+    p.addEventListener("click", () => { current.splice(i, 1); render(); });
+    return p;
+  }
+  let editing = false;
+  function setControls(edit, label) {
+    editing = edit;
+    $("primary").textContent = label;
+    $("primary").disabled = !edit || current.length !== SLOTS;
+    $("undo").disabled = !edit || current.length === 0;
+    $("undo").hidden = false;
+    paletteEl.querySelectorAll("button").forEach(b => b.disabled = !edit || current.length >= SLOTS);
+  }
+  function finishedControls(label) {
+    setControls(false, label);
+    $("primary").disabled = false;
+    $("undo").hidden = true;
+  }
+
+  function render() {
+    $("shareRow").hidden = true; $("conn").hidden = mode !== "online";
+    if (mode === "solo") renderSolo(); else if (mode === "duo") renderDuo(); else if (mode === "online") renderOnline();
+  }
+
+  function renderSolo() {
+    $("room").textContent = "Hra pro jednoho";
+    $("scores").innerHTML = "";
+    drawBoard({ secret: solo.secret, showSecret: solo.over, guesses: solo.guesses, editGuess: !solo.over });
+    if (solo.over) {
+      finishedControls("Nová hra");
+      const won = solo.guesses[solo.guesses.length - 1].b === SLOTS;
+      setStatus(won ? `Prolomeno na ${solo.guesses.length}. pokus!` : "Došly pokusy. Kód je odkrytý nahoře.", won ? "win" : "lose");
+    } else {
+      setControls(true, "Zkontrolovat");
+      setStatus(solo.guesses.length ? `Zbývá ${ROWS - solo.guesses.length} pokusů.` : "Vyber 4 barvy a zkontroluj tip.");
+    }
+  }
+
+  function renderDuo() {
+    const setter = g.players[g.setter], guesser = g.players[1 - g.setter];
+    $("room").textContent = "Kolo " + g.round;
+    const sc = $("scores"); sc.innerHTML = "";
+    g.players.forEach((p, i) => {
+      const chip = document.createElement("span");
+      chip.className = "chip" + ((g.status === "guessing" ? 1 - g.setter : g.setter) === i ? " on" : "");
+      chip.textContent = `${p}: ${g.points[i]}`;
+      sc.appendChild(chip);
+    });
+    if (g.status === "setting") {
+      drawBoard({ editSecret: true, guesses: [] });
+      setControls(true, "Uložit kód");
+      setStatus(`${setter}, vymysli kód${g.dupes ? "" : " (bez opakování barev)"}. ${guesser} se nedívá!`, "turn");
+    } else if (g.status === "guessing") {
+      drawBoard({ secret: g.secret, showSecret: false, guesses: g.guesses, editGuess: true });
+      setControls(true, "Zkontrolovat");
+      setStatus(`${guesser} luští. Zbývá ${ROWS - g.guesses.length} pokusů.`, "turn");
+    } else if (g.status === "done") {
+      drawBoard({ secret: g.secret, showSecret: true, guesses: g.guesses });
+      finishedControls("Další kolo");
+      const n = g.guesses.length, cracked = g.guesses[n - 1].b === SLOTS;
+      setStatus(cracked ? `${guesser} prolomil(a) kód na ${n}. pokus. ${setter} dostává ${n} b.` : `${guesser} kód neprolomil(a)! ${setter} dostává 11 b.`, cracked ? "win" : "lose");
+    }
+  }
+
+  function showCover(title, text, btn, then) {
+    $("coverTitle").textContent = title; $("coverText").textContent = text; $("coverBtn").textContent = btn;
+    $("cover").hidden = false;
+    $("coverBtn").onclick = () => { $("cover").hidden = true; then && then(); };
+  }
+
+  function addColor(c) {
+    if (!editing || current.length >= SLOTS) return;
+    const st = mode === "online" ? os : mode === "duo" ? g : null;
+    if (st && st.status === "setting" && !st.dupes && current.includes(c)) { setStatus("V této hře se barvy nesmí opakovat.", "lose"); return; }
+    current.push(c); render();
+  }
+
+  function primary() {
+    if ($("primary").disabled) return;
+    if (mode === "solo") {
+      if (solo.over) return startSolo();
+      const r = score(solo.secret, current);
+      solo.guesses.push({ g: current.slice(), b: r.black, w: r.white });
+      current = [];
+      if (r.black === SLOTS || solo.guesses.length >= ROWS) solo.over = true;
+      return render();
+    }
+    if (mode === "online") return onlinePrimary();
+    if (g.status === "setting") {
+      g.secret = current.slice(); g.guesses = []; current = []; g.status = "guessing";
+      showCover("Kód je uložený", `Teď předej telefon: ${g.players[1 - g.setter]}.`, "Začít hádat", render);
+      boardEl.innerHTML = "";
+      return;
+    }
+    if (g.status === "guessing") {
+      const r = score(g.secret, current);
+      g.guesses.push({ g: current.slice(), b: r.black, w: r.white });
+      current = [];
+      if (r.black === SLOTS || g.guesses.length >= ROWS) {
+        g.points[g.setter] += r.black === SLOTS ? g.guesses.length : ROWS + 1;
+        g.status = "done";
+      }
+      return render();
+    }
+    if (g.status === "done") {
+      g.setter = 1 - g.setter; g.round++; g.secret = null; g.guesses = []; g.status = "setting"; current = [];
+      showCover(`Kolo ${g.round}`, `Telefon dostává ${g.players[g.setter]}, vymyslí nový kód. ${g.players[1 - g.setter]} se nedívá.`, "Jsem připraven(a)", render);
+    }
+  }
+
+  function show(screen) {
+    $("menu").hidden = screen !== "menu";
+    $("game").hidden = screen !== "game";
+    $("menuBtn").hidden = screen !== "game";
+  }
+  function startSolo() {
+    mode = "solo"; current = [];
+    solo = { secret: randomSecret($("dupes").checked), guesses: [], over: false };
+    show("game"); render();
+  }
+  function startDuo() {
+    const n1 = $("n1").value.trim() || "Hráč 1", n2 = $("n2").value.trim() || "Hráč 2";
+    store("pk-n1", $("n1").value.trim()); store("pk-n2", $("n2").value.trim());
+    mode = "duo"; current = [];
+    g = { players: [n1, n2], setter: 0, status: "setting", secret: null, guesses: [], points: [0, 0], round: 1, dupes: $("dupes").checked };
+    show("game");
+    showCover("Kolo 1", `${n1} vymyslí kód. ${n2} se nedívá.`, "Jsem připraven(a)", render);
+  }
+  function toMenu() { $("cover").hidden = true; leaveOnline(); mode = null; show("menu"); refreshResume(); }
+
+  // ---------------- ONLINE (public MQTT broker, no accounts) ----------------
+  const qs = new URLSearchParams(location.search);
+  const BROKER = qs.get("broker") || "wss://broker.hivemq.com:8884/mqtt";
+  const TOPIC = code => "prolomkod/v1/" + code;
+  let myId = load("pk-id");
+  if (!myId) { myId = Math.random().toString(36).slice(2, 12); store("pk-id", myId); }
+  let client = null, room = null, os = null, joinWait = null;
+
+  function myIdx() { return os ? os.players.findIndex(p => p.id === myId) : -1; }
+  function setConn(ok, text) { const c = $("conn"); c.textContent = text; c.className = "conn" + (ok ? " ok" : ""); }
+
+  function connect() {
+    if (client) return client;
+    if (!window.mqtt) { showErr("Chybí síťová knihovna, online hra nejde spustit."); return null; }
+    setConn(false, "Připojuji se…");
+    client = mqtt.connect(BROKER, { clientId: "pk_" + myId + "_" + Math.random().toString(36).slice(2, 6), reconnectPeriod: 2000, connectTimeout: 10000, clean: true });
+    client.on("connect", () => { setConn(true, "Připojeno"); if (room) client.subscribe(TOPIC(room), { qos: 1 }); });
+    client.on("reconnect", () => setConn(false, "Připojuji se…"));
+    client.on("offline", () => setConn(false, "Bez připojení k internetu. Zkouším to znovu…"));
+    client.on("error", () => setConn(false, "Problém se spojením. Zkouším to znovu…"));
+    client.on("message", (topic, payload) => {
+      if (!room || topic !== TOPIC(room)) return;
+      const txt = payload.toString();
+      if (!txt) { if (joinWait) joinWait(null); return; }
+      let s; try { s = JSON.parse(txt); } catch (e) { return; }
+      if (!s || !Array.isArray(s.players)) return;
+      if (joinWait) { joinWait(s); return; }
+      if (!os || s.rev >= os.rev) {
+        const prev = os; os = s;
+        if (prev && (prev.status !== s.status || prev.round !== s.round)) current = [];
+        if (mode === "online") render();
+      }
+    });
+    return client;
+  }
+  function leaveOnline() {
+    if (client && room) client.unsubscribe(TOPIC(room));
+    room = null; os = null; joinWait = null;
+  }
+  function publish(s) {
+    s.rev = (os ? os.rev : 0) + 1;
+    os = s;
+    client.publish(TOPIC(room), JSON.stringify(s), { qos: 1, retain: true });
+    render();
+  }
+  function myName() {
+    const n = $("myName").value.trim();
+    store("pk-me", n);
+    return n || "Hráč";
+  }
+  function showErr(t) { $("err").textContent = t; }
+
+  function openRoom(code) {
+    room = code; mode = "online"; current = [];
+    store("pk-room", code);
+    show("game"); render();
+  }
+
+  function createOnline() {
+    if (!connect()) return;
+    const A = "ABCDEFGHJKLMNPRSTUVXYZ";
+    const code = Array.from({ length: 5 }, () => A[Math.floor(Math.random() * A.length)]).join("");
+    leaveOnline();
+    openRoom(code);
+    client.subscribe(TOPIC(code), { qos: 1 });
+    publish({ players: [{ id: myId, name: myName() }], setter: 0, status: "waiting", secret: null, guesses: [], points: [0, 0], round: 1, dupes: $("dupes").checked });
+  }
+
+  function joinOnline(codeArg) {
+    const code = (codeArg || $("codeIn").value).trim().toUpperCase();
+    if (code.length !== 5) { showErr("Kód hry má 5 písmen."); return; }
+    if (!connect()) return;
+    showErr("Hledám hru…");
+    leaveOnline();
+    room = code;
+    const timer = setTimeout(() => joinWait && joinWait(null), 8000);
+    joinWait = s => {
+      clearTimeout(timer); joinWait = null;
+      if (!s) { room = null; showErr(client.connected ? "Hra s tímto kódem neexistuje." : "Nepodařilo se připojit k internetu."); return; }
+      os = s; showErr("");
+      const me = myIdx();
+      if (me >= 0) { openRoom(code); return; }
+      if (s.players.length >= 2) { room = null; os = null; showErr("Hra už je plná."); return; }
+      openRoom(code);
+      const n = JSON.parse(JSON.stringify(s));
+      n.players.push({ id: myId, name: myName() });
+      n.status = "setting"; n.setter = 0;
+      publish(n);
+    };
+    client.subscribe(TOPIC(code), { qos: 1 });
+  }
+
+  function onlinePrimary() {
+    if (!os) return;
+    const me = myIdx();
+    const n = JSON.parse(JSON.stringify(os));
+    if (n.status === "setting" && n.setter === me) {
+      n.secret = current.slice(); n.guesses = []; n.status = "guessing";
+    } else if (n.status === "guessing" && n.setter !== me) {
+      const r = score(n.secret, current);
+      n.guesses.push({ g: current.slice(), b: r.black, w: r.white });
+      if (r.black === SLOTS || n.guesses.length >= ROWS) {
+        n.points[n.setter] += r.black === SLOTS ? n.guesses.length : ROWS + 1;
+        n.status = "done";
+      }
+    } else if (n.status === "done") {
+      n.setter = 1 - n.setter; n.round++; n.secret = null; n.guesses = []; n.status = "setting";
+    } else return;
+    current = [];
+    publish(n);
+  }
+
+  function renderOnline() {
+    const r = $("room"); r.textContent = "Kód hry ";
+    const b = document.createElement("b"); b.textContent = room; r.appendChild(b);
+    if (os && os.round) r.append(" · kolo " + os.round);
+    const sc = $("scores"); sc.innerHTML = "";
+    if (!os) { drawBoard({}); setControls(false, "…"); setStatus("Načítám hru…"); return; }
+    const me = myIdx();
+    os.players.forEach((p, i) => {
+      const chip = document.createElement("span");
+      chip.className = "chip" + (i === me ? " on" : "");
+      chip.textContent = `${p.name}${i === me ? " (ty)" : ""}: ${os.points[i]}`;
+      sc.appendChild(chip);
+    });
+    const other = os.players[1 - me], otherName = other ? other.name : "Soupeř";
+    const iSet = os.setter === me;
+    if (os.status === "waiting") {
+      drawBoard({}); setControls(false, "Čekám…");
+      $("shareRow").hidden = false;
+      setStatus(`Pošli kamarádovi kód ${room}. Hra začne, až se připojí.`, "turn");
+    } else if (os.status === "setting") {
+      if (iSet) { drawBoard({ editSecret: true, guesses: [] }); setControls(true, "Uložit kód"); setStatus(`Vymysli tajný kód pro: ${otherName}${os.dupes ? "" : " (bez opakování barev)"}.`, "turn"); }
+      else { drawBoard({ guesses: [] }); setControls(false, "Čekám…"); setStatus(`${otherName} vymýšlí kód…`); }
+    } else if (os.status === "guessing") {
+      if (iSet) { drawBoard({ secret: os.secret, showSecret: true, guesses: os.guesses }); setControls(false, "Soupeř hádá…"); setStatus(`${otherName} luští tvůj kód. Pokus ${os.guesses.length}/${ROWS}.`); }
+      else { drawBoard({ secret: os.secret, showSecret: false, guesses: os.guesses, editGuess: true }); setControls(true, "Zkontrolovat"); setStatus(`Jsi na tahu. Zbývá ${ROWS - os.guesses.length} pokusů.`, "turn"); }
+    } else if (os.status === "done") {
+      drawBoard({ secret: os.secret, showSecret: true, guesses: os.guesses });
+      finishedControls("Další kolo");
+      const n = os.guesses.length, cracked = os.guesses[n - 1].b === SLOTS;
+      if (iSet) setStatus(cracked ? `${otherName} prolomil(a) kód na ${n}. pokus. Bereš ${n} b.` : `${otherName} kód neprolomil(a)! Bereš 11 b.`, cracked ? "" : "win");
+      else setStatus(cracked ? `Prolomeno na ${n}. pokus!` : "Došly pokusy. Kód je odkrytý nahoře.", cracked ? "win" : "lose");
+    }
+  }
+
+  function shareCode() {
+    const text = `Zahraj si se mnou Prolom kód! Otevři aplikaci, dej Online a zadej kód: ${room}`;
+    if (window.Android && Android.share) { Android.share(text); return; }
+    if (navigator.share) { navigator.share({ text }).catch(() => {}); return; }
+    try { navigator.clipboard.writeText(text); setStatus("Kód zkopírován.", "turn"); } catch (e) {}
+  }
+
+  function refreshResume() {
+    const last = load("pk-room");
+    const b = $("resume");
+    b.hidden = !last;
+    if (last) b.textContent = "Vrátit se do hry " + last;
+  }
+
+  // Android back button: return true if handled
+  window.onAndroidBack = () => { if (!$("game").hidden || !$("cover").hidden) { toMenu(); return true; } return false; };
+
+  NAMES.forEach((n, c) => { const b = peg(c, true); b.addEventListener("click", () => addColor(c)); paletteEl.appendChild(b); });
+  $("primary").addEventListener("click", primary);
+  $("undo").addEventListener("click", () => { current.pop(); render(); });
+  $("solo").addEventListener("click", startSolo);
+  $("duo").addEventListener("click", startDuo);
+  $("menuBtn").addEventListener("click", toMenu);
+  $("create").addEventListener("click", createOnline);
+  $("joinBtn").addEventListener("click", () => joinOnline());
+  $("codeIn").addEventListener("keydown", e => { if (e.key === "Enter") joinOnline(); });
+  $("resume").addEventListener("click", () => joinOnline(load("pk-room")));
+  $("shareBtn").addEventListener("click", shareCode);
+  $("myName").value = load("pk-me") || "";
+  refreshResume();
+  $("n1").value = load("pk-n1") || ""; $("n2").value = load("pk-n2") || "";
+  const d = load("pk-dupes"); if (d !== null) $("dupes").checked = d === "1";
+  $("dupes").addEventListener("change", () => store("pk-dupes", $("dupes").checked ? "1" : "0"));
+  show("menu");
+})();
+</script>
+</body>
+</html>
