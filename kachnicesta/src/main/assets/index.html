@@ -629,7 +629,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     ell(.03, .026, .026, BLACK, 0, -.012, -.315, head);
     smile(head, -.075, -.27, .04);
     const jaw = new THREE.Group(); jaw.name = "jawHinge"; head.add(jaw);           // kept for the animation code
-    g.userData.lids = heroEyes(head, .055, -.13, .072, .062, 0xb07818, FUR);
+    g.userData.lids = heroEyes(head, .055, -.135, .062, .045, 0xb07818, FUR);
     for (const sx of [-1, 1]) {
       const ear = new THREE.Group(); ear.position.set(sx * .1, .15, .02); ear.rotation.set(-.15, 0, -sx * .22); ear.name = sx < 0 ? "earL" : "earR"; head.add(ear);
       flatEar(ear, FUR, WHITE, BLACK, .075, .22);
@@ -656,7 +656,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     ell(.017, .01, .01, 0xffffff, .013, .008, -.345, head);
     smile(head, -.085, -.27, .045);
     const jaw = new THREE.Group(); jaw.name = "jawHinge"; head.add(jaw);
-    g.userData.lids = heroEyes(head, .075, -.12, .075, .066, 0x5a3418, null);
+    g.userData.lids = heroEyes(head, .07, -.13, .064, .048, 0x5a3418, null);
     for (const sx of [-1, 1]) {
       const ear = new THREE.Group(); ear.position.set(sx * .14, .13, .02); ear.name = sx < 0 ? "earL" : "earR"; head.add(ear);
       ell(.06, .16, .035, EAR, 0, -.11, 0, ear);
@@ -1246,7 +1246,21 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     toss = { fromX: duck.x, fromRow: duck.row, toX: pick ? pick.land - .5 : duck.x, toRow: pick ? pick.lane.row : duck.row, target: pick, t: 0, delay: vk === "ped" ? .5 : 0, ped: vk === "ped" ? item : null };
     if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
   }
+  // hide everything but the head (used while the hippo holds the animal in its mouth)
+  function showOnlyHead(g, on) {
+    const head = g.getObjectByName("head");
+    g.traverse(o => {
+      if (!o.isMesh || o.userData.isOutline) return;
+      let inHead = false; for (let p = o; p; p = p.parent) if (p === head) { inHead = true; break; }
+      if (!head) inHead = o.position.y > .45;          // simple animals: keep the upper part
+      o.userData.hiddenByHippo = on && !inHead;
+      if (on && !inHead) o.visible = false;
+      else if (!on && o.userData.wasHidden !== undefined) o.visible = true;
+      if (on && !inHead) o.userData.wasHidden = true;
+    });
+  }
   function afterDeath() {
+    if (player) { showOnlyHead(player, false); player.traverse(o => { if (o.isMesh && o.userData.wasHidden) { o.visible = true; delete o.userData.wasHidden; } }); }
     dizzy.visible = false; dieCarry = null;
     hippo.visible = false; popGroup.visible = false;
     clearSplats();                                          // the road is clean again for the next try
@@ -1499,10 +1513,14 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
             const sq = t < .95 ? (t - .85) / .1 : 1;
             // held crosswise: head sticks out of one side of the mouth, bottom and kicking feet out of the other
             // body inside the mouth, head poking out of the side of the jaws towards the camera
+            // only the head stays visible, sticking out between the closed jaws at the tip of the snout
             const toCamH = new THREE.Vector3(camera.position.x - hippoAt.x, 0, camera.position.z - hippoAt.z).normalize();
-            { const a = atSnout(.72).add(toCamH.clone().multiplyScalar(.42)); ox = a.x; oz = a.z; } py = hippo.position.y + .08 + Math.sin(t * 9) * .015;
-            player.rotation.set(Math.sin(t * 17) * .06, Math.atan2(-toCamH.x, -toCamH.z) + Math.sin(t * 7) * .12, Math.sin(t * 13) * .05);
-            player.scale.set(.6, .6 - sq * .08, .6);
+            const sc = .62, headY = player.userData.hero ? .82 : .6;
+            const tip = atSnout(.86).add(toCamH.clone().multiplyScalar(.05));
+            ox = tip.x; oz = tip.z; py = hippo.position.y + .27 - headY * sc + Math.sin(t * 9) * .015;
+            player.rotation.set(Math.sin(t * 17) * .05, Math.atan2(-toCamH.x, -toCamH.z) + Math.sin(t * 7) * .12, Math.sin(t * 13) * .05);
+            player.scale.set(sc, sc - sq * .04, sc);
+            showOnlyHead(player, true);
             const kick = Math.sin(t * 26) * .9;
             for (const n of ["fl", "fr"]) { const f = player.getObjectByName(n); if (f) { f.rotation.x = n === "fl" ? kick : -kick; f.position.y = .03 + Math.abs(kick) * .04; } }
             const under = Math.max(0, (t - 2.6) / .6);
