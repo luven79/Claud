@@ -498,86 +498,139 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     ell(r, r * .6, r * 1.3, color, -.12, .04, -.04, g).name = "fl";
     ell(r, r * .6, r * 1.3, color, .12, .04, -.04, g).name = "fr";
   }
+  // ---- illustrated cartoon animals: drawn on canvas, shown as camera-facing sprites ----
+  // Cartoon animal illustrations drawn on a 256x256 canvas: front view, standing, big laughing mouth.
+  // pose: "idle" | "jump" | "hurt"
+  function drawAnimal(x, kind, pose) {
+    const OL = "#2b1e22", LW = 7;
+    const P = {
+      duck:     { fur: "#ffd23f", belly: "#fff3a3", dark: "#e8a800", iris: "#4a3420" },
+      rabbit:   { fur: "#e9e4dc", belly: "#ffffff", dark: "#c9c2b8", iris: "#5a7fb0" },
+      hedgehog: { fur: "#8a6244", belly: "#f3d6ae", dark: "#4a3020", iris: "#3a2a1a" },
+      pig:      { fur: "#ffb3c1", belly: "#ffd9e0", dark: "#e98aa0", iris: "#3a2a1a" },
+      cat:      { fur: "#f4a742", belly: "#fff1dc", dark: "#c9741a", iris: "#3f9b3f" },
+      fox:      { fur: "#e8692a", belly: "#ffffff", dark: "#b84a16", iris: "#b07818" },
+    }[kind];
+    const sh = (fill, fn, lw = LW) => { x.beginPath(); fn(); x.fillStyle = fill; x.fill(); if (lw) { x.lineWidth = lw; x.strokeStyle = OL; x.lineJoin = "round"; x.stroke(); } };
+    const el = (cx, cy, rx, ry, rot, fill, lw = LW) => sh(fill, () => x.ellipse(cx, cy, rx, ry, rot, 0, Math.PI * 2), lw);
+    const jump = pose === "jump", hurt = pose === "hurt";
+    x.setTransform(1, 0, 0, 1, 0, 0); x.clearRect(0, 0, 256, 256); x.lineCap = "round";
+    x.setTransform(.88, 0, 0, .88, 15.4, 28);          // leave room for ears and raised arms
+  
+    // ---- tail / back spikes (behind everything) ----
+    if (kind === "fox") { el(205, 170, 30, 52, -0.7, P.fur); el(226, 140, 16, 18, -0.7, "#ffffff"); }
+    if (kind === "cat") sh("transparent", () => { x.moveTo(178, 205); x.bezierCurveTo(232, 200, 236, 150, 214, 120); }, 0), (x.lineWidth = 22, x.strokeStyle = OL, x.stroke(), x.lineWidth = 12, x.strokeStyle = P.fur, x.stroke());
+    if (kind === "pig") { x.lineWidth = 7; x.strokeStyle = OL; x.beginPath(); x.arc(198, 192, 12, 0.5, 5.5); x.stroke(); }
+    if (kind === "rabbit") el(190, 205, 18, 16, 0, "#ffffff");
+    if (kind === "hedgehog") sh(P.dark, () => {
+      const n = 26; for (let i = 0; i <= n; i++) { const a = Math.PI * (1.05 + i / n * 0.9) - Math.PI * 0.05; const r = i % 2 ? 108 : 86; const px = 128 + Math.cos(a) * r * 1.05, py = 150 + Math.sin(a) * r; i ? x.lineTo(px, py) : x.moveTo(px, py); }
+      for (let i = 0; i <= 8; i++) { const a = Math.PI * (0.05 - i / 8 * 0.1); x.lineTo(128 + Math.cos(a) * 92, 150 + Math.sin(a) * 70); }
+    });
+  
+    // ---- legs & feet ----
+    const footC = kind === "duck" ? "#f28c28" : kind === "fox" ? "#3a2418" : kind === "hedgehog" ? "#4a3020" : P.dark;
+    const legSpread = jump ? 34 : 26;
+    for (const s of [-1, 1]) {
+      el(128 + s * legSpread, 214, 16, jump ? 22 : 24, 0, kind === "duck" ? "#f28c28" : P.fur);
+      el(128 + s * (legSpread + 6), 238, 26, 12, 0, footC);
+    }
+  
+    // ---- body & belly ----
+    el(128, 178, 62, 56, 0, P.fur);
+    el(128, 188, 40, 38, 0, P.belly, 4);
+    if (kind === "cat") { x.lineWidth = 6; x.strokeStyle = P.dark; for (const s of [-1, 1]) { x.beginPath(); x.moveTo(128 + s * 58, 170); x.lineTo(128 + s * 44, 176); x.stroke(); } }
+  
+    // ---- arms (wings for the duck); raised arms are drawn after the head ----
+    const arms = () => { for (const s of [-1, 1]) {
+      const ax = 128 + s * (jump ? 84 : 60), ay = jump ? 112 : hurt ? 140 : 170, rot = jump ? s * -0.45 : hurt ? s * -1.1 : s * 0.55;
+      if (kind === "duck") el(ax, ay, 18, 40, rot, P.fur);
+      else { el(ax, ay, 15, 34, rot, P.fur); el(ax + s * Math.sin(Math.abs(rot)) * 26 * (jump ? 1 : 0.6), ay + (jump ? -30 : hurt ? -24 : 28), 13, 12, 0, kind === "fox" ? "#3a2418" : P.belly); }
+    } };
+    if (!jump) arms();
+  
+    // ---- ears behind the head ----
+    if (kind === "rabbit") for (const s of [-1, 1]) { el(128 + s * 34, 22, 20, 52, s * 0.18, P.fur); el(128 + s * 34, 26, 10, 38, s * 0.18, "#ff9fbf", 0); }
+    if (kind === "cat" || kind === "fox") for (const s of [-1, 1]) {
+      sh(P.fur, () => { x.moveTo(128 + s * 70, 92); x.lineTo(128 + s * 62, kind === "fox" ? 4 : 18); x.lineTo(128 + s * 22, 52); x.closePath(); });
+      sh(kind === "fox" ? "#2b1e22" : "#ff9fbf", () => { x.moveTo(128 + s * 60, 64); x.lineTo(128 + s * 60, kind === "fox" ? 14 : 30); x.lineTo(128 + s * 40, 50); x.closePath(); }, 0);
+    }
+    if (kind === "pig") for (const s of [-1, 1]) sh(P.dark, () => { x.moveTo(128 + s * 66, 70); x.lineTo(128 + s * 84, 26); x.lineTo(128 + s * 36, 40); x.closePath(); });
+    if (kind === "hedgehog") for (const s of [-1, 1]) el(128 + s * 56, 48, 14, 14, 0, P.belly);
+  
+    // ---- head ----
+    const headC = kind === "hedgehog" ? P.belly : P.fur;
+    el(128, 96, kind === "hedgehog" ? 66 : 76, kind === "hedgehog" ? 60 : 68, 0, headC);
+    if (kind === "fox") sh("#ffffff", () => { x.moveTo(62, 104); x.quadraticCurveTo(128, 196, 194, 104); x.quadraticCurveTo(128, 132, 62, 104); }, 0);
+    if (kind === "cat") { x.lineWidth = 6; x.strokeStyle = P.dark; for (const dx of [-14, 0, 14]) { x.beginPath(); x.moveTo(128 + dx, 30); x.lineTo(128 + dx * 0.7, 48); x.stroke(); } }
+    if (kind === "duck") for (const dx of [-10, 0, 10]) el(128 + dx, 28, 6, 16, dx * 0.04, P.fur, 5);
+  
+    if (jump) arms();
+  
+    // ---- eyes & brows ----
+    const ey = kind === "hedgehog" ? 80 : 76;
+    for (const s of [-1, 1]) {
+      const ex = 128 + s * 28;
+      if (hurt) {
+        el(ex, ey, 20, 22, 0, "#ffffff", 5);
+        x.lineWidth = 6; x.strokeStyle = OL; x.beginPath(); x.moveTo(ex - 10, ey - 10); x.lineTo(ex + 10, ey + 10); x.moveTo(ex + 10, ey - 10); x.lineTo(ex - 10, ey + 10); x.stroke();
+      } else {
+        el(ex, ey, 21, jump ? 28 : 25, 0, "#ffffff", 5);
+        el(ex + s * 2, ey + 4, jump ? 10 : 12, jump ? 12 : 14, 0, P.iris, 0);
+        el(ex + s * 2, ey + 5, jump ? 6 : 7, jump ? 7 : 8, 0, "#111111", 0);
+        el(ex + s * 2 + 5, ey - 2, 4, 4, 0, "#ffffff", 0);
+      }
+      x.lineWidth = 7; x.strokeStyle = OL; x.beginPath();
+      const by = ey - (jump ? 40 : 32); x.moveTo(ex - 16, by + (s < 0 ? 6 : -2) * (hurt ? -1 : 1)); x.lineTo(ex + 16, by + (s < 0 ? -2 : 6) * (hurt ? -1 : 1)); x.stroke();
+      el(ex + s * 22, ey + 34, 13, 8, 0, "rgba(255,110,140,.55)", 0);
+    }
+  
+    // ---- snout & mouth ----
+    const mw = hurt ? 18 : jump ? 40 : 32, mh = hurt ? 18 : jump ? 34 : 24, my = 122;
+    const mouth = (cx, top) => {
+      if (hurt) { el(cx, top + 10, mw * .7, mh * .8, 0, "#6b1020", 5); return; }
+      sh("#6b1020", () => { x.moveTo(cx - mw, top); x.quadraticCurveTo(cx, top + 6, cx + mw, top); x.quadraticCurveTo(cx + mw * .9, top + mh * 1.9, cx, top + mh * 1.9); x.quadraticCurveTo(cx - mw * .9, top + mh * 1.9, cx - mw, top); }, 6);
+      x.save(); x.clip();
+      el(cx, top + mh * 1.75, mw * .62, mh * .6, 0, "#ff6f8e", 0);
+      x.fillStyle = "#ffffff"; x.fillRect(cx - mw * .8, top - 2, mw * 1.6, 9);
+      x.restore();
+    };
+    if (kind === "duck") {
+      el(128, my + (jump ? 26 : 18), 40, jump ? 24 : 16, 0, "#f07c12");               // lower beak
+      if (!hurt) el(128, my + (jump ? 18 : 12), 30, jump ? 14 : 8, 0, "#6b1020", 0);
+      el(128, my - 2, 44, 15, 0, "#ff9a2e");                                           // upper beak
+      el(116, my - 6, 4, 3, 0, "#7a3a10", 0); el(140, my - 6, 4, 3, 0, "#7a3a10", 0);
+    } else if (kind === "pig") {
+      mouth(128, my + 16);
+      el(128, my - 2, 30, 20, 0, "#ff8fa8"); el(118, my - 2, 6, 9, 0, "#8a3a50", 0); el(138, my - 2, 6, 9, 0, "#8a3a50", 0);
+    } else {
+      mouth(128, my);
+      if (kind === "rabbit" && !hurt) { sh("#ffffff", () => x.rect(118, my - 2, 9, 16), 4); sh("#ffffff", () => x.rect(129, my - 2, 9, 16), 4); }
+      const noseC = kind === "fox" || kind === "hedgehog" ? "#1b1b1f" : "#ff7f9f";
+      el(128, my - 10, kind === "hedgehog" ? 12 : 10, kind === "hedgehog" ? 10 : 7, 0, noseC, 4);
+      if (kind === "cat" || kind === "rabbit" || kind === "fox") { x.lineWidth = 3; x.strokeStyle = OL; for (const s of [-1, 1]) for (const dy of [-6, 4]) { x.beginPath(); x.moveTo(128 + s * 26, my - 6 + dy * .5); x.lineTo(128 + s * 62, my - 10 + dy * 1.5); x.stroke(); } }
+    }
+    if (hurt) { x.fillStyle = "#ffd23f"; for (let i = 0; i < 3; i++) { const a = i * 2.1; x.beginPath(); x.arc(128 + Math.cos(a) * 70, 22 + Math.sin(a) * 10, 7, 0, 7); x.fill(); } }
+  }
+  const animalTex = {};
+  function animalTexture(kind, pose) {
+    const key = kind + "/" + pose;
+    if (!animalTex[key]) {
+      const c = document.createElement("canvas"); c.width = c.height = 256;
+      drawAnimal(c.getContext("2d"), kind, pose);
+      const t = new THREE.CanvasTexture(c); t.anisotropy = 4; animalTex[key] = t;
+    }
+    return animalTex[key];
+  }
   function makeAnimal(kind, s = 1) {
     const g = new THREE.Group(), b = new THREE.Group(); g.add(b); g.userData.body = b;
-    if (kind === "rabbit") {
-      const fur = 0xe3ded6;
-      ell(.21, .2, .23, fur, 0, .25, .06, b); ell(.14, .13, .1, 0xffffff, 0, .25, -.12, b);
-      ell(.25, .23, .22, fur, 0, .58, -.12, b);
-      for (const sx of [-1, 1]) {
-        const ear = new THREE.Group(); ear.position.set(sx * .1, .76, -.1); ear.rotation.z = -sx * .15; ear.name = sx < 0 ? "el" : "er"; b.add(ear);
-        ell(.07, .24, .045, fur, 0, .22, 0, ear); ell(.04, .19, .02, 0xff9fbf, 0, .22, -.03, ear);
-      }
-      bigEyes(b, .64, -.3, .095); cheeks(b, .52, -.31, .15);
-      ell(.04, .03, .025, 0xff7f9f, 0, .55, -.34, b);
-      bigMouth(b, .46, -.31, .07, true);
-      for (const sx of [-1, 1]) box(.12, .008, .008, 0x444444, sx * .17, .52, -.32, b).rotation.z = sx * .15;
-      ell(.08, .08, .08, 0xffffff, 0, .3, .3, b);
-      paws(g, 0xcfc9bf, .08);
-    } else if (kind === "hedgehog") {
-      ell(.27, .21, .28, 0x8a6a4a, 0, .22, .06, b);
-      for (let i = 0; i < 26; i++) {
-        const a = (i / 26) * Math.PI * 2, ring = i % 3;
-        const sp = cone(.05, .2, i % 2 ? 0x3b2a1e : 0x5a3f2a, Math.cos(a) * (.16 - ring * .04), .34 + ring * .06, .1 + Math.sin(a) * (.16 - ring * .04) + .04, b);
-        sp.rotation.set(Math.sin(a) * .9 + .3, 0, -Math.cos(a) * .9);
-      }
-      ell(.2, .17, .17, 0xf0d2a8, 0, .3, -.2, b);
-      ell(.08, .06, .1, 0xf0d2a8, 0, .26, -.36, b); ell(.035, .03, .03, 0x111111, 0, .27, -.46, b);
-      bigEyes(b, .37, -.31, .075, .065); cheeks(b, .27, -.33, .12);
-      bigMouth(b, .2, -.33, .05);
-      ell(.04, .04, .02, 0xc9a37a, -.13, .45, -.24, b).name = "el"; ell(.04, .04, .02, 0xc9a37a, .13, .45, -.24, b).name = "er";
-      paws(g, 0x5a3f2a, .06);
-    } else if (kind === "pig") {
-      ell(.27, .23, .29, 0xffb3c1, 0, .28, .06, b);
-      ell(.25, .23, .22, 0xffc2ce, 0, .58, -.15, b);
-      const snout = cyl(.1, .1, .08, 0xff8fa8, 16, b); snout.rotation.x = Math.PI / 2; snout.position.set(0, .54, -.37);
-      for (const sx of [-1, 1]) ell(.022, .03, .01, 0x8a3a50, sx * .04, .54, -.415, b);
-      bigEyes(b, .67, -.31, .1); cheeks(b, .54, -.31, .17);
-      bigMouth(b, .42, -.32, .08);
-      for (const sx of [-1, 1]) { const e = cone(.08, .14, 0xff8fa8, sx * .15, .8, -.12, b); e.rotation.set(-.4, 0, -sx * .4); e.name = sx < 0 ? "el" : "er"; }
-      const tail = new THREE.Mesh(new THREE.TorusGeometry(.05, .015, 6, 12), M(0xff8fa8)); tail.position.set(0, .38, .36); b.add(tail);
-      paws(g, 0xc96a80, .07);
-    } else if (kind === "cat") {
-      const fur = 0xf4a742;
-      ell(.21, .2, .26, fur, 0, .26, .06, b); ell(.13, .14, .1, 0xfff1dc, 0, .26, -.12, b);
-      for (const z of [-.02, .1, .22]) ell(.2, .03, .04, 0xc9741a, 0, .44, z, b);
-      ell(.25, .22, .22, fur, 0, .58, -.14, b);
-      for (const sx of [-1, 1]) { const ear = new THREE.Group(); ear.position.set(sx * .14, .78, -.12); ear.name = sx < 0 ? "el" : "er"; b.add(ear); cone(.08, .16, fur, 0, .05, 0, ear); cone(.045, .1, 0xff9fbf, 0, .04, -.03, ear); }
-      ell(.12, .08, .06, 0xfff1dc, 0, .5, -.32, b);
-      bigEyes(b, .64, -.31, .1, .085, 0x3f9b3f); cheeks(b, .52, -.32, .16);
-      ell(.03, .022, .02, 0xff7f9f, 0, .54, -.38, b);
-      bigMouth(b, .46, -.36, .06, true);
-      for (const sx of [-1, 1]) for (const dy of [-.015, .015]) box(.16, .006, .006, 0x333333, sx * .17, .52 + dy, -.34, b).rotation.z = sx * dy * 6;
-      const tail = new THREE.Group(); tail.position.set(0, .3, .3); tail.rotation.x = -.7; b.add(tail);
-      ell(.045, .2, .045, fur, 0, .18, 0, tail);
-      paws(g, 0xfff1dc, .07);
-    } else if (kind === "fox") {
-      const fur = 0xe8692a;
-      ell(.2, .2, .26, fur, 0, .28, .06, b); ell(.13, .14, .1, 0xffffff, 0, .27, -.13, b);
-      ell(.24, .21, .21, fur, 0, .58, -.14, b);
-      const muzzle = cone(.11, .2, 0xffffff, 0, .51, -.38, b); muzzle.rotation.x = -Math.PI / 2;
-      ell(.035, .028, .03, 0x111111, 0, .52, -.49, b);
-      for (const sx of [-1, 1]) { const ear = new THREE.Group(); ear.position.set(sx * .13, .78, -.12); ear.name = sx < 0 ? "el" : "er"; b.add(ear); cone(.08, .2, fur, 0, .07, 0, ear); cone(.05, .08, 0x2a1a12, 0, .15, 0, ear); }
-      bigEyes(b, .66, -.29, .1, .08, 0x8a5a14); cheeks(b, .55, -.31, .16);
-      bigMouth(b, .45, -.36, .065, true);
-      const tail = new THREE.Group(); tail.position.set(0, .3, .32); tail.rotation.x = -.6; b.add(tail);
-      ell(.12, .12, .26, fur, 0, 0, .14, tail); ell(.09, .09, .1, 0xffffff, 0, 0, .36, tail);
-      paws(g, 0x2a1a12, .07);
-    } else {
-      // duck
-      ell(.24, .21, .27, 0xffd23f, 0, .26, .04, b);
-      ell(.12, .08, .1, 0xffe680, 0, .38, .26, b);
-      ell(.06, .15, .19, 0xf0b400, -.24, .28, .06, b).name = "wl";
-      ell(.06, .15, .19, 0xf0b400, .24, .28, .06, b).name = "wr";
-      ell(.24, .22, .22, 0xffe066, 0, .6, -.14, b);
-      for (let i = 0; i < 3; i++) { const f = ell(.025, .08, .025, 0xffe066, (i - 1) * .04, .84, -.12, b); f.rotation.z = (i - 1) * .4; }
-      ell(.13, .04, .12, 0xff9a2e, 0, .53, -.38, b);                        // upper beak
-      const lower = ell(.11, .03, .1, 0xf07c12, 0, .47, -.35, b); lower.name = "jaw";
-      ell(.07, .03, .03, 0x7a2a10, 0, .5, -.42, b);                         // inside of the open beak
-      bigEyes(b, .68, -.3, .1); cheeks(b, .56, -.32, .17);
-      paws(g, 0xf28c28, .08);
-    }
-    g.scale.setScalar(s); return outline(g, .03, .2);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: animalTexture(kind, "idle"), transparent: true, alphaTest: .05 }));
+    sp.scale.set(1.2, 1.2, 1); sp.position.y = .58; b.add(sp);
+    g.userData.sprite = sp; g.userData.kind = kind; g.userData.pose = "idle";
+    g.scale.setScalar(s); return g;
+  }
+  function setPose(g, pose) {
+    if (!g || g.userData.pose === pose) return;
+    g.userData.pose = pose; g.userData.sprite.material.map = animalTexture(g.userData.kind, pose); g.userData.sprite.material.needsUpdate = true;
   }
   function wheelSet(g, xs, zs, r, w, hub = 0xd9d9d9) {
     for (const x of xs) for (const z of zs) {
@@ -1002,7 +1055,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     popGroup.visible = amount > 0 && player.visible;
     if (!popGroup.visible) return;
     player.updateMatrixWorld(true);
-    const head = player.localToWorld(new THREE.Vector3(0, .66, -.3));
+    const head = player.localToWorld(new THREE.Vector3(0, .78, .05));
     const toCam = camera.position.clone().sub(head).normalize();
     const right = new THREE.Vector3().crossVectors(toCam, UP).normalize();
     const spring = 1 - Math.exp(-5 * t) * Math.cos(16 * t);              // shoots out, overshoots, wobbles
@@ -1403,6 +1456,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         if (jaw) jaw.position.y = .47 - lift * .06 - Math.max(0, Math.sin(clock * 2.3)) * .01;
       }
       player.position.set(ox !== null ? ox : px, py, oz !== null ? oz : cz(pr));
+      // sprite: pick the drawing, follow spins in screen space, mirror when walking left/right
+      setPose(player, state === "dying" ? "hurt" : (h < 1 || (showcase && Math.sin(clock * 1.3) > .85)) ? "jump" : "idle");
+      const spr = player.userData.sprite;
+      spr.material.rotation = state === "dying" ? player.rotation.z + player.rotation.x * .5 : -lift * .15 * (duck.face === "left" ? -1 : 1);
+      spr.scale.x = (duck.face === "left" && state !== "dying" ? -1 : 1) * Math.abs(spr.scale.x);
       placePopEyes(popAmount, popT);
       blob.position.set(px, .01, cz(pr)); blob.scale.setScalar(1 - lift * .35); blob.visible = !(lane && lane.type === "river" && h === 1) && state !== "dying";
 
