@@ -78,7 +78,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   <div class="stage" id="stage">
     <div class="overlay" id="overlay">
       <h2 id="ovTitle">Kachní cesta</h2>
-      <p id="ovText">Vyber si zvířátko a doveď ho přes cyklostezku, silnice, koleje, chodník a potoky do hnízd. Pozor na lekníny, které se třesou.</p>
+      <p id="ovText">Vyber si zvířátko a doveď ho přes silnice s cyklopruhem, koleje, chodník a potoky do hnízd. Pozor na lekníny, které se třesou.</p>
       <div class="animals" id="animals" role="group" aria-label="Vyber zvířátko"></div>
       <button class="btn" id="startBtn" type="button">Hrát</button>
     </div>
@@ -132,7 +132,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       { dir: 1,  n: 3, kind: "mixed" },
       { dir: -1, n: 3, kind: "mixed" } ] },
     { type: "bikelane", laneType: "road", lanes: [
-      { dir: 1, n: 3, kind: "mixed", only: "bike" } ] },
+      { dir: 1, n: 3, kind: "mixed", only: "bike", zOff: -(1 - .64) / 2 } ] },
     { type: "grass" },
   ];
   const SEGMENTS = [], LANES = [];
@@ -177,13 +177,42 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   scene.add(sun); scene.add(sun.target);
 
   const matCache = {};
+  // three flat tones instead of smooth light: the cartoon "cel" look
+  const toonRamp = new THREE.DataTexture(new Uint8Array([105, 105, 105, 185, 185, 185, 255, 255, 255]), 3, 1, THREE.RGBFormat);
+  toonRamp.minFilter = toonRamp.magFilter = THREE.NearestFilter; toonRamp.generateMipmaps = false; toonRamp.needsUpdate = true;
   const M = (color, opts = {}) => {
     const key = color + JSON.stringify(opts);
-    return matCache[key] || (matCache[key] = new THREE.MeshLambertMaterial({ color, ...opts }));
+    return matCache[key] || (matCache[key] = new THREE.MeshToonMaterial({ color, gradientMap: toonRamp, ...opts }));
   };
   const boxGeo = new THREE.BoxGeometry(1, 1, 1);
+  // unit box with soft rounded edges (normals point outwards from the rounded core, so shading is smooth)
+  const rboxGeo = (() => {
+    const g = new THREE.BoxGeometry(1, 1, 1, 4, 4, 4), r = .2, lim = .5 - r;
+    const pos = g.attributes.position, nor = g.attributes.normal, v = new THREE.Vector3(), inner = new THREE.Vector3(), n = new THREE.Vector3();
+    for (let i = 0; i < pos.count; i++) {
+      v.fromBufferAttribute(pos, i);
+      inner.set(Math.max(-lim, Math.min(lim, v.x)), Math.max(-lim, Math.min(lim, v.y)), Math.max(-lim, Math.min(lim, v.z)));
+      n.copy(v).sub(inner); if (n.lengthSq() < 1e-9) n.fromBufferAttribute(nor, i); n.normalize();
+      v.copy(inner).addScaledVector(n, r); pos.setXYZ(i, v.x, v.y, v.z); nor.setXYZ(i, n.x, n.y, n.z);
+    }
+    return g;
+  })();
+  const outlineMat = new THREE.MeshBasicMaterial({ color: 0x1d1a24, side: THREE.BackSide });
+  // ink outline: a slightly larger back-face copy behind every sizeable part
+  function outline(group, t = .035) {
+    const list = []; group.traverse(o => { if (o.isMesh && !o.userData.isOutline) list.push(o); });
+    for (const m of list) {
+      m.geometry.computeBoundingBox();
+      const sz = new THREE.Vector3(); m.geometry.boundingBox.getSize(sz); sz.multiply(m.scale);
+      if (Math.max(sz.x, sz.y, sz.z) < .09) continue;
+      const o = new THREE.Mesh(m.geometry, outlineMat); o.userData.isOutline = true; o.castShadow = false;
+      o.scale.set(1 + 2 * t / Math.max(sz.x, .01), 1 + 2 * t / Math.max(sz.y, .01), 1 + 2 * t / Math.max(sz.z, .01));
+      m.add(o);
+    }
+    return group;
+  }
   function box(w, h, d, color, x = 0, y = 0, z = 0, parent, opts) {
-    const m = new THREE.Mesh(boxGeo, M(color, opts));
+    const m = new THREE.Mesh(Math.max(w, h, d) > 3 ? boxGeo : rboxGeo, M(color, opts));
     m.scale.set(w, h, d); m.position.set(x, y, z);
     m.castShadow = true; m.receiveShadow = true;
     if (parent) parent.add(m);
@@ -221,9 +250,9 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       sp.userData = { v: rand(-.3, .3), ph: rand(0, 6) }; sparks.push(sp); world.add(sp);
     }
   }
-  function roadBlock(r0, n) {
+  function roadBlock(r0, n, bikeLaneBelow) {
     box(40, 0.3, n, 0x3d424b, COLS / 2, -0.17, r0 + n / 2, world);
-    for (const z of [r0 + 0.02, r0 + n - 0.02]) box(40, 0.36, 0.1, 0xd9d9d0, COLS / 2, -0.1, z, world);
+    for (const z of bikeLaneBelow ? [r0 + 0.02] : [r0 + 0.02, r0 + n - 0.02]) box(40, 0.36, 0.1, 0xd9d9d0, COLS / 2, -0.1, z, world);
     const mid = r0 + Math.floor(n / 2);
     for (let r = r0 + 1; r < r0 + n; r++) {
       if (r === mid) { box(40, 0.02, 0.05, 0xf2c230, COLS / 2, -0.015, r - 0.04, world); box(40, 0.02, 0.05, 0xf2c230, COLS / 2, -0.015, r + 0.04, world); continue; }
@@ -242,14 +271,17 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       box(0.2, 0.05, 0.14, 0xfff2b0, x + (x < 0 ? .12 : -.12), 1.54, z - 0.35, world, { emissive: 0x665d20 });
     }
   }
+  // narrow bike lane at the road's edge: asphalt with a solid white line, then curb and grass
+  const BIKE_W = .64;
   function bikeLaneBlock(r0) {
-    const z = cz(r0);
-    box(40, 0.3, 1, 0xb5523b, COLS / 2, -0.13, z, world);
-    for (const dz of [-0.44, 0.44]) for (let x = -14; x < 26; x += 0.8) box(0.5, 0.01, 0.05, 0xffffff, x, 0.025, z + dz, world);
+    box(40, 0.3, BIKE_W, 0x464b55, COLS / 2, -0.17, r0 + BIKE_W / 2, world);
+    box(40, 0.02, 0.05, 0xf4f4f0, COLS / 2, -0.015, r0 + 0.02, world);
+    box(40, 0.36, 0.1, 0xd9d9d0, COLS / 2, -0.1, r0 + BIKE_W + 0.03, world);
+    box(40, 0.3, 1 - BIKE_W - 0.06, 0x7fc94f, COLS / 2, -0.15, r0 + (1 + BIKE_W + 0.06) / 2, world);
     const white = new THREE.MeshBasicMaterial({ color: 0xf4f4f0 });
     for (let x = -12; x < 24; x += 3.5) {        // painted bicycle symbols
-      for (const dx of [-0.22, 0.22]) { const w = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 14), white); w.rotation.x = -Math.PI / 2; w.position.set(x + dx, 0.03, z); world.add(w); }
-      box(0.36, 0.01, 0.035, 0xf4f4f0, x, 0.03, z - 0.04, world);
+      for (const dx of [-0.18, 0.18]) { const w = new THREE.Mesh(new THREE.RingGeometry(0.08, 0.11, 14), white); w.rotation.x = -Math.PI / 2; w.position.set(x + dx, 0.004, r0 + BIKE_W / 2); world.add(w); }
+      box(0.3, 0.01, 0.03, 0xf4f4f0, x, 0.004, r0 + BIKE_W / 2 - 0.03, world);
     }
   }
   const signalLights = [];
@@ -303,9 +335,9 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   house(-3.5, ROWS + 2.8, 0xc0392b); house(COLS + 3.5, ROWS + 2.5, 0x2c6e9b);
   for (let x = -6; x < COLS + 6; x += 0.6) { box(0.08, 0.4, 0.08, 0xe8dcc0, x, 0.2, ROWS + .2, world); }
   box(COLS + 12, 0.06, 0.05, 0xe8dcc0, COLS / 2, 0.32, ROWS + .2, world);
-  for (const sgm of SEGMENTS) {
+  SEGMENTS.forEach((sgm, si) => {
     if (sgm.type === "river") riverBlock(sgm.r0, sgm.n);
-    else if (sgm.type === "road") roadBlock(sgm.r0, sgm.n);
+    else if (sgm.type === "road") roadBlock(sgm.r0, sgm.n, SEGMENTS[si + 1] && SEGMENTS[si + 1].type === "bikelane");
     else if (sgm.type === "rail") railBlock(sgm.r0);
     else if (sgm.type === "sidewalk") sidewalkBlock(sgm.r0);
     else if (sgm.type === "bikelane") bikeLaneBlock(sgm.r0);
@@ -314,7 +346,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       for (const x of [-1.3, -2.6, COLS + 1.3, COLS + 2.7]) if (Math.random() < .7) bush(x, cz(sgm.r0));
       if (sgm.r0 !== START_ROW) { tree(-3.6 - Math.random() * 2, cz(sgm.r0), 1.1); tree(COLS + 3.6 + Math.random() * 2, cz(sgm.r0), 1.1); }
     }
-  }
+  });
 
   // reeds & nests (row 0)
   const reeds = [];
@@ -425,7 +457,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       eyes(b, .64, -.32);
       feet(g, 0xf28c28);
     }
-    g.scale.setScalar(s); return g;
+    g.scale.setScalar(s); return outline(g);
   }
   function makeCar(color) {
     const g = new THREE.Group(), dark = new THREE.Color(color).multiplyScalar(.72).getHex();
@@ -544,10 +576,10 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   const laneGroup = new THREE.Group(); scene.add(laneGroup);
   // mixed road traffic: cars fastest, bikes medium, trucks slow, tractors a bit slower than trucks
   const VEH = {
-    car:     { len: 1, speed: 2.3,  weight: .42 },
-    bike:    { len: 1, speed: 1.35, weight: .2 },
-    truck:   { len: 2, speed: 1.05, weight: .2 },
-    tractor: { len: 1, speed: .82,  weight: .18 },
+    car:     { len: 1, speed: 1.5,  weight: .55 },
+    truck:   { len: 2, speed: 1.5,  weight: .25 },
+    tractor: { len: 1, speed: 1.5,  weight: .2 },
+    bike:    { len: 1, speed: 1.15, weight: 0 },      // only in the bike lane
     ped:     { len: 1, speed: .5,   weight: 0 },
   };
   function pickKind(l) {
@@ -558,11 +590,12 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   }
   function setVehicle(l, it, kind) {
     if (it.mesh) laneGroup.remove(it.mesh);
-    const m = kind === "car" ? makeCar(CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)])
-      : kind === "truck" ? makeTruck() : kind === "tractor" ? makeTractor() : kind === "ped" ? makePed() : makeBike();
+    const m = outline(kind === "car" ? makeCar(CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)])
+      : kind === "truck" ? makeTruck() : kind === "tractor" ? makeTractor() : kind === "ped" ? makePed() : makeBike());
+    if (kind === "bike" && l.only) m.scale.setScalar(.85);
     if (l.dir < 0) m.rotation.y = Math.PI;
     it.mesh = m; it.kind = kind; it.len = VEH[kind].len;
-    it.speed = VEH[kind].speed * rand(.92, 1.08) * (1 + 0.15 * (level - 1));
+    it.speed = VEH[kind].speed * (1 + 0.15 * (level - 1));      // same speed for everyone in a lane: nobody catches up
     laneGroup.add(m);
   }
   // distance a follower would close on `ahead` before `ahead` leaves the screen
@@ -729,6 +762,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     box(.12, .1, .08, HIPPO_DARK, x * 1.45, .44, -.18, upperJaw);          // ears
   }
   hippo.traverse(o => { if (o.isMesh) o.castShadow = false; });
+  outline(hippo, .03);
   let hippoAt = new THREE.Vector3(), popAmount = 0, popT = 0, boinged = false;
   // hippo turned three-quarters towards the camera: snout points right and forward
   const HIPPO_TURN = .3, SNOUT = new THREE.Vector3(Math.sin(.3), 0, Math.cos(.3));
@@ -751,6 +785,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     g.userData = { head, lids }; g.scale.setScalar(1.25);
     g.traverse(o => { if (o.isMesh) o.castShadow = false; });
+    outline(g, .03);
     scene.add(g); return g;
   }
   function spawnLurkers() {
@@ -1016,7 +1051,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function render(dt) {
     // lanes
     for (const l of lanes) for (const it of l.items) {
-      const m = it.mesh, x = it.x + (it.len || l.len) / 2, z = cz(l.row);
+      const m = it.mesh, x = it.x + (it.len || l.len) / 2, z = cz(l.row) + (l.zOff || 0);
       // keep traffic in front of the camera out of the hippo close-up
       m.visible = !(closeUp && l.type !== "river" && l.row > hippoAt.z && l.row <= hippoAt.z + 4);
       if (l.type === "rail") { m.position.set(x, 0, z); continue; }
