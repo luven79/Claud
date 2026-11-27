@@ -78,7 +78,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   <div class="stage" id="stage">
     <div class="overlay" id="overlay">
       <h2 id="ovTitle">Kachní cesta</h2>
-      <p id="ovText">Vyber si zvířátko a doveď ho přes silnice, koleje a potoky do hnízd. Pozor na lekníny, které se třesou.</p>
+      <p id="ovText">Vyber si zvířátko a doveď ho přes cyklostezku, silnice, koleje, chodník a potoky do hnízd. Pozor na lekníny, které se třesou.</p>
       <div class="animals" id="animals" role="group" aria-label="Vyber zvířátko"></div>
       <button class="btn" id="startBtn" type="button">Hrát</button>
     </div>
@@ -107,6 +107,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       { speed: 0.9, dir: 1,  len: 4, n: 2, kind: "log" },
       { speed: 1.4, dir: -1, len: 3, n: 3, kind: "lily", sink: true } ] },
     { type: "grass" },
+    { type: "sidewalk", laneType: "road", lanes: [
+      { dir: 1, n: 3, kind: "mixed", only: "ped" } ] },
     { type: "road", lanes: [
       { dir: 1,  n: 3, kind: "mixed" },
       { dir: -1, n: 3, kind: "mixed" },
@@ -129,6 +131,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       { dir: -1, n: 3, kind: "mixed" },
       { dir: 1,  n: 3, kind: "mixed" },
       { dir: -1, n: 3, kind: "mixed" } ] },
+    { type: "bikelane", laneType: "road", lanes: [
+      { dir: 1, n: 3, kind: "mixed", only: "bike" } ] },
     { type: "grass" },
   ];
   const SEGMENTS = [], LANES = [];
@@ -136,7 +140,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     for (const d of SEGMENTS_DEF) {
       const n = d.lanes ? d.lanes.length : 1;
       SEGMENTS.push({ type: d.type, r0: r, n });
-      if (d.lanes) d.lanes.forEach((l, i) => LANES.push({ ...l, row: r + i, type: d.type }));
+      if (d.lanes) d.lanes.forEach((l, i) => LANES.push({ ...l, row: r + i, type: d.laneType || d.type }));
       r += n;
     } }
   const ROWS = SEGMENTS[SEGMENTS.length - 1].r0 + 1, START_ROW = ROWS - 1;
@@ -226,6 +230,28 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       for (let x = -14; x < 26; x++) box(0.55, 0.02, 0.06, 0xf0f0e8, x + 0.5, -0.015, r, world);
     }
   }
+  function sidewalkBlock(r0) {
+    const z = cz(r0);
+    box(40, 0.3, 1, 0xc9cdd2, COLS / 2, -0.13, z, world);
+    for (let x = -14; x < 26; x += 0.5) box(0.02, 0.01, 0.98, 0x9aa0a8, x, 0.025, z, world);
+    box(40, 0.01, 0.02, 0x9aa0a8, COLS / 2, 0.025, z, world);
+    for (const dz of [-0.47, 0.47]) box(40, 0.36, 0.08, 0xe8e8e2, COLS / 2, -0.1, z + dz, world);
+    for (const x of [-1.6, COLS + 1.6]) {      // street lamps beside the board
+      box(0.08, 1.6, 0.08, 0x3a3f47, x, 0.8, z - 0.35, world);
+      box(0.3, 0.1, 0.18, 0x3a3f47, x + (x < 0 ? .12 : -.12), 1.6, z - 0.35, world);
+      box(0.2, 0.05, 0.14, 0xfff2b0, x + (x < 0 ? .12 : -.12), 1.54, z - 0.35, world, { emissive: 0x665d20 });
+    }
+  }
+  function bikeLaneBlock(r0) {
+    const z = cz(r0);
+    box(40, 0.3, 1, 0xb5523b, COLS / 2, -0.13, z, world);
+    for (const dz of [-0.44, 0.44]) for (let x = -14; x < 26; x += 0.8) box(0.5, 0.01, 0.05, 0xffffff, x, 0.025, z + dz, world);
+    const white = new THREE.MeshBasicMaterial({ color: 0xf4f4f0 });
+    for (let x = -12; x < 24; x += 3.5) {        // painted bicycle symbols
+      for (const dx of [-0.22, 0.22]) { const w = new THREE.Mesh(new THREE.RingGeometry(0.11, 0.15, 14), white); w.rotation.x = -Math.PI / 2; w.position.set(x + dx, 0.03, z); world.add(w); }
+      box(0.36, 0.01, 0.035, 0xf4f4f0, x, 0.03, z - 0.04, world);
+    }
+  }
   const signalLights = [];
   function railBlock(r0) {
     const z = cz(r0);
@@ -281,6 +307,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     if (sgm.type === "river") riverBlock(sgm.r0, sgm.n);
     else if (sgm.type === "road") roadBlock(sgm.r0, sgm.n);
     else if (sgm.type === "rail") railBlock(sgm.r0);
+    else if (sgm.type === "sidewalk") sidewalkBlock(sgm.r0);
+    else if (sgm.type === "bikelane") bikeLaneBlock(sgm.r0);
     else {
       grassRow(sgm.r0);
       for (const x of [-1.3, -2.6, COLS + 1.3, COLS + 2.7]) if (Math.random() < .7) bush(x, cz(sgm.r0));
@@ -453,6 +481,26 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     for (let x = -half + 0.4; x < half - 0.2; x += 0.75) for (const dz of [-0.3, 0.3]) { const w = cyl(0.14, 0.14, 0.08, 0x222222, 10, g); w.rotation.x = Math.PI / 2; w.position.set(x, 0.18, dz); }
     return g;
   }
+  const SHIRTS = [0xe63946, 0x457b9d, 0x2a9d8f, 0xf4a261, 0x8e44ad, 0x264653];
+  function makePed() {
+    // built walking towards +x
+    const g = new THREE.Group(), legs = [], arms = [];
+    for (const dz of [-0.09, 0.09]) {
+      const hip = new THREE.Group(); hip.position.set(0, .34, dz); g.add(hip);
+      box(.1, .32, .1, 0x2b3a55, 0, -.16, 0, hip); box(.16, .06, .11, 0x222222, .03, -.32, 0, hip);
+      legs.push(hip);
+    }
+    box(.2, .34, .3, SHIRTS[Math.floor(Math.random() * SHIRTS.length)], 0, .52, 0, g);
+    for (const dz of [-0.19, 0.19]) {
+      const sh = new THREE.Group(); sh.position.set(0, .66, dz); g.add(sh);
+      box(.08, .28, .08, 0xf2c9a0, 0, -.14, 0, sh); arms.push(sh);
+    }
+    box(.2, .2, .2, 0xf2c9a0, 0, .8, 0, g);
+    box(.22, .08, .22, [0x3b2a1e, 0xd9a441, 0x111111, 0x8a4b2a][Math.floor(Math.random() * 4)], -.01, .92, 0, g);
+    box(.03, .04, .03, 0x111111, .1, .82, -.05, g); box(.03, .04, .03, 0x111111, .1, .82, .05, g);
+    g.userData = { legs, arms };
+    return g;
+  }
   function makeBike() {
     const g = new THREE.Group();
     for (const x of [-.3, .3]) { const w = new THREE.Mesh(new THREE.TorusGeometry(.17, .03, 6, 14), M(0x222222)); w.position.set(x, .18, 0); w.castShadow = true; g.add(w); }
@@ -500,8 +548,10 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     bike:    { len: 1, speed: 1.35, weight: .2 },
     truck:   { len: 2, speed: 1.05, weight: .2 },
     tractor: { len: 1, speed: .82,  weight: .18 },
+    ped:     { len: 1, speed: .5,   weight: 0 },
   };
-  function pickKind() {
+  function pickKind(l) {
+    if (l && l.only) return l.only;
     let r = Math.random();
     for (const k in VEH) { r -= VEH[k].weight; if (r <= 0) return k; }
     return "car";
@@ -509,7 +559,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function setVehicle(l, it, kind) {
     if (it.mesh) laneGroup.remove(it.mesh);
     const m = kind === "car" ? makeCar(CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)])
-      : kind === "truck" ? makeTruck() : kind === "tractor" ? makeTractor() : makeBike();
+      : kind === "truck" ? makeTruck() : kind === "tractor" ? makeTractor() : kind === "ped" ? makePed() : makeBike();
     if (l.dir < 0) m.rotation.y = Math.PI;
     it.mesh = m; it.kind = kind; it.len = VEH[kind].len;
     it.speed = VEH[kind].speed * rand(.92, 1.08) * (1 + 0.15 * (level - 1));
@@ -529,10 +579,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     for (const it of l.items) {
       if (it.u > COLS + 2) {
-        setVehicle(l, it, pickKind());
+        setVehicle(l, it, pickKind(l));
         const others = l.items.filter(o => o !== it), last = others.reduce((m, o) => o.u < m.u ? o : m, others[0]);
         // a faster vehicle starts further back so it rarely catches up with a slow one before the edge
-        let gap = rand(1.2, 4);
+        // always leave room to cross: single-kind lanes (bike lane, sidewalk) get wide gaps
+        let gap = l.only ? rand(2.6, 5) : rand(1.7, 4);
         if (it.speed > last.speed) gap += Math.min(7, (COLS + 2 - last.u) / last.speed * (it.speed - last.speed) * .5);
         it.u = Math.min(-it.len - 1.5 - rand(0, 2), last.u - it.len - gap);
       }
@@ -548,9 +599,9 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         let u = COLS + 1 - rand(0, 2);
         for (let i = 0; i < L.n; i++) {
           const it = { phase: Math.random() * 6 };
-          setVehicle(lane, it, pickKind());
+          setVehicle(lane, it, pickKind(lane));
           it.u = u - it.len; it.x = uToX(lane, it);
-          u = it.u - rand(1.5, 4.5);
+          u = it.u - (L.only ? rand(2.6, 5) : rand(1.7, 4.5));
           lane.items.push(it);
         }
         return lane;
@@ -804,37 +855,39 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
       return;
     }
-    const vk = lane.kind === "train" ? "train" : item.kind === "truck" ? "truck" : item.kind === "bike" ? "bike" : "car";
+    const vk = lane.kind === "train" ? "train" : item.kind === "truck" ? "truck" : item.kind === "bike" ? "bike" : item.kind === "ped" ? "ped" : "car";
     if (vk === "train") {
       dieKind = "train"; dieTrain = { lane, it: item }; shake = .5;
       burst(duck.x + .5, cz(duck.row), .5, "feather", furOf());
       if (navigator.vibrate) try { navigator.vibrate([100, 50, 100]); } catch (e) {}
       return;
     }
-    if (vk !== "bike") { startHit(vk); return; }
-    // cyclist crash: the bike falls over and the animal is thrown into a neighbouring car/truck lane
+    if (vk !== "bike" && vk !== "ped") { startHit(vk); return; }
+    // cyclist: the bike falls over and throws the animal into a neighbouring car/truck lane
+    // pedestrian: pushes the animal away, then kicks it like a football into the road
     item.crashed = true; crashedBike = item; dieKind = "bike"; shake = .2;
+    if (vk === "ped") { item.kicking = true; item.kickFrom = duck.x; }
     burst(duck.x + .5, cz(duck.row), .4, "feather", furOf());
     const options = [];
     for (const r of [duck.row - 1, duck.row + 1]) {
       const l = laneAt(r);
-      if (!l || !l.mixed) continue;
+      if (!l || !l.mixed || l.only) continue;
       for (const v of l.items) {
         if (v.kind === "bike" || v.crashed) continue;
         const vx = l.dir * v.speed, front = l.dir > 0 ? v.x + v.len : v.x;
-        const land = front + vx * 1.1;             // where this vehicle will be about 1 s from now
+        const land = front + vx * (vk === "ped" ? 1.6 : 1.1);   // where this vehicle will be when the animal lands
         if (land > .3 && land < COLS - 1.3) options.push({ lane: l, v, land });
       }
     }
     const pick = options.length ? options[Math.floor(Math.random() * options.length)] : null;
-    toss = { fromX: duck.x, fromRow: duck.row, toX: pick ? pick.land - .5 : duck.x, toRow: pick ? pick.lane.row : duck.row, target: pick, t: 0 };
+    toss = { fromX: duck.x, fromRow: duck.row, toX: pick ? pick.land - .5 : duck.x, toRow: pick ? pick.lane.row : duck.row, target: pick, t: 0, delay: vk === "ped" ? .5 : 0, ped: vk === "ped" ? item : null };
     if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
   }
   function afterDeath() {
     hippo.visible = false; popGroup.visible = false;
     clearSplats();                                          // the road is clean again for the next try
     for (const n of ["fl", "fr"]) { const f = player.getObjectByName(n); if (f) { f.rotation.x = 0; f.position.y = .03; } }
-    if (crashedBike) { crashedBike.crashed = false; crashedBike = null; }
+    if (crashedBike) { crashedBike.crashed = false; crashedBike.kicking = false; crashedBike = null; }
     toss = null; player.rotation.set(0, faceAngle, 0);
     lives--; updateHud();
     if (lives <= 0) {
@@ -888,13 +941,13 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       }
       if (dieKind === "bike") {
         toss.t += dt;
-        if (toss.t >= .55) { duck.x = toss.toX; duck.row = toss.toRow; duck.fromX = duck.x; duck.fromRow = duck.row; }
+        if (toss.t >= toss.delay + .55) { duck.x = toss.toX; duck.row = toss.toRow; duck.fromX = duck.x; duck.fromRow = duck.row; }
         const tg = toss.target;
-        if (tg && toss.t >= .55) {
+        if (tg && toss.t >= toss.delay + .55) {
           const a = tg.v.x + .1, b = tg.v.x + tg.v.len - .1, cx = duck.x + .5;
           if (cx + .3 > a && cx - .3 < b) { startHit(tg.v.kind === "truck" ? "truck" : "car"); return; }
         }
-        if (toss.t > 3) startHit("car");
+        if (toss.t > toss.delay + 3) startHit("car");
         return;
       }
       if (dieT >= (DIE_TIME[dieKind] || 1.2)) afterDeath();
@@ -947,6 +1000,20 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           m.rotation.x = m.userData.fall * 1.45; m.position.y = m.userData.fall * .14;
         }
         if (it.kind === "bike" && !it.crashed) { const s = Math.sin(clock * 12) * .08; m.userData.legs[0].position.y = .32 + s; m.userData.legs[1].position.y = .32 - s; }
+        if (it.kind === "ped") {
+          const ud = m.userData;
+          if (it.kicking && toss) {
+            m.rotation.y = -Math.PI / 2;                       // turn to face the road
+            const k = toss.t, wind = k < toss.delay * .7 ? -1.1 * (k / (toss.delay * .7)) : k < toss.delay + .15 ? 1.6 : 1.6 - (k - toss.delay - .15);
+            ud.legs[0].rotation.z = Math.max(-1.1, Math.min(1.6, wind)); ud.legs[1].rotation.z = 0;
+            ud.arms[0].rotation.z = -wind * .4; ud.arms[1].rotation.z = wind * .4;
+          } else {
+            m.rotation.y = l.dir < 0 ? Math.PI : 0;
+            const sw = Math.sin(clock * 7 + it.phase) * .5;
+            ud.legs[0].rotation.z = sw; ud.legs[1].rotation.z = -sw; ud.arms[0].rotation.z = -sw * .8; ud.arms[1].rotation.z = sw * .8;
+            m.position.y = Math.abs(Math.sin(clock * 7 + it.phase)) * .03;
+          }
+        }
         if (it.kind === "tractor") { const sm = m.userData.smoke, p = (clock * 1.5) % 1; sm.position.set(.28 - p * .3, .85 + p * .6, -.08); sm.material.opacity = .6 * (1 - p); sm.scale.setScalar(.1 + p * .2); m.position.y = Math.abs(Math.sin(clock * 9)) * .02; }
       } else {
         const st = l.kind === "lily" ? lilyState(it) : "up";
@@ -1009,12 +1076,19 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           player.scale.set(1 + f * .7, Math.max(.05, 1 - f), 1 + f * .7); py = .01;
           player.visible = dieT < 1.2;
         } else if (dieKind === "bike") {
-          const t = Math.min(1, toss.t / .55);
+          const t = Math.max(0, Math.min(1, (toss.t - toss.delay) / .55));
+          if (toss.t < toss.delay) {
+            // shoved back by the pedestrian, wobbling before the kick
+            const q = toss.t / toss.delay;
+            ox = toss.fromX + .5 - Math.sin(q * Math.PI * .5) * .25; oz = cz(toss.fromRow) - .05;
+            py = Math.sin(q * Math.PI) * .25; player.rotation.set(0, faceAngle + Math.sin(clock * 12) * .4, Math.sin(q * 9) * .3);
+          } else {
           ox = toss.fromX + (toss.toX - toss.fromX) * t + .5;
           oz = cz(toss.fromRow + (toss.toRow - toss.fromRow) * t);
           py = Math.sin(t * Math.PI) * 1.6;
           player.rotation.set(t * 6.3, faceAngle, t < 1 ? t * 3 : Math.PI / 2);
           if (t >= 1) { py = .18; player.rotation.set(0, faceAngle + Math.sin(clock * 6) * .3, Math.PI / 2); }
+          }
         } else if (dieKind === "water") {
           const t = dieT; hippoAnim(t);
           const mouth = atSnout(.75, .55);
