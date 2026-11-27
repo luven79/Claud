@@ -631,15 +631,15 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       // camera follows the duck in depth
       showcase = state === "menu" || state === "over";
       const wantZ = showcase ? cz(pr) - 0.75 : Math.min(7.6, Math.max(5.6, cz(pr) - 3.6));
-      const wantX = showcase ? px : COLS / 2;
+      const wantX = showcase ? px : COLS / 2 + 0.7;
       camTarget.z += (wantZ - camTarget.z) * Math.min(1, dt * 4);
       camTarget.x += (wantX - camTarget.x) * Math.min(1, dt * 4);
     }
     const hf = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
-    const fullDist = Math.max(9, (COLS / 2 + 0.25) / Math.tan(hf / 2));
+    const fullDist = Math.max(9, (COLS / 2 + 0.6) / Math.tan(hf / 2), 6.6 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
     camDist += ((showcase ? 4.4 : fullDist) - camDist) * Math.min(1, dt * 4 || 1);
     const dist = camDist;
-    const off = new THREE.Vector3(0, .87, .5).normalize().multiplyScalar(dist);
+    const off = new THREE.Vector3(showcase ? 0 : .14, showcase ? .87 : .9, showcase ? .5 : .4).normalize().multiplyScalar(dist);
     camera.position.copy(camTarget).add(off);
     if (shake > 0) camera.position.add(new THREE.Vector3(rand(-1, 1), rand(-1, 1), 0).multiplyScalar(shake * .4));
     camera.lookAt(camTarget);
