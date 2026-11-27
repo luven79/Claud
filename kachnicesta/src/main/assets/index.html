@@ -1116,14 +1116,14 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   const popGroup = new THREE.Group(); popGroup.visible = false; scene.add(popGroup);
   // coiled spring of unit length along +y; stretching it along y spreads the coils like a real spring
   const SPRING_GEO = (() => {
-    const turns = 9, r = .055;
+    const turns = 5, r = .075;
     class Helix extends THREE.Curve {
       getPoint(t, target = new THREE.Vector3()) { const a = t * turns * Math.PI * 2; return target.set(Math.cos(a) * r, t, Math.sin(a) * r); }
     }
-    return new THREE.TubeGeometry(new Helix(), 220, .014, 6, false);
+    return new THREE.TubeGeometry(new Helix(), 160, .026, 8, false);
   })();
   const popEyes = [-1, 1].map(side => {
-    const stalk = new THREE.Mesh(SPRING_GEO, new THREE.MeshToonMaterial({ color: 0xd9dde3, gradientMap: toonRamp }));
+    const stalk = new THREE.Mesh(SPRING_GEO, new THREE.MeshToonMaterial({ color: 0xaab3bf, gradientMap: toonRamp }));
     const ball = new THREE.Mesh(new THREE.SphereGeometry(.3, 18, 14), new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x222222 }));
     const iris = new THREE.Mesh(new THREE.SphereGeometry(.15, 14, 10), new THREE.MeshLambertMaterial({ color: 0x2b7bd6 }));
     const pupil = new THREE.Mesh(new THREE.SphereGeometry(.09, 12, 10), new THREE.MeshBasicMaterial({ color: 0x0a0a0a }));
@@ -1166,10 +1166,10 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     // 0–.5 rise with mouth opening · .5–.85 animal drops in · .85–.95 snap · .95–1.9 animal stuck, eyes pop out
     // 1.9–2.3 gulp · 2.3–3.0 sink
     const rise = Math.min(1, t / .5), sink = Math.max(0, (t - 2.4) / 1.0);
-    hippo.position.set(hippoAt.x, -1.3 + rise * 1.15 - sink * sink * 1.6 + Math.sin(clock * 3) * .02, hippoAt.z);
+    hippo.position.set(hippoAt.x, -1.3 + rise * 1.42 - sink * sink * 1.8 + Math.sin(clock * 3) * .02, hippoAt.z);
     let open = 0;
     if (t < .5) open = rise * 1.05; else if (t < .85) open = 1.05; else if (t < .95) open = 1.05 - (t - .85) / .1 * .8;
-    else open = .22 + Math.sin(t * 9) * .02;                        // jaws clamped on the animal, also while diving
+    else open = .3 + Math.sin(t * 9) * .02;                        // jaws clamped on the animal, also while diving
     upperJaw.rotation.x = -open;
     const happy = t > .95 && t < 2.9;
     for (const l of hippoLids) l.visible = happy;
@@ -1228,7 +1228,12 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     state = "dying"; dieT = 0;
     if (kind !== "hit") {
       dieKind = kind; shake = .15;
-      if (kind === "water") { boinged = false; hippoAt.set(Math.min(COLS - .6, Math.max(.6, duck.x + .5)), 0, cz(duck.row) - .25); hippo.visible = true; hippoAnim(0); }
+      if (kind === "water") {
+        boinged = false;
+        const seg = SEGMENTS.find(sg => sg.type === "river" && duck.row >= sg.r0 && duck.row < sg.r0 + sg.n);
+        const midZ = seg ? seg.r0 + seg.n / 2 - .7 : cz(duck.row) - .25;          // snout points towards +z, keep it over the water
+        hippoAt.set(Math.min(COLS - 1.2, Math.max(1.2, duck.x + .5)), 0, midZ); hippo.visible = true; hippoAnim(0);
+      }
       burst(duck.x + .5, cz(duck.row), .4, kind === "water" ? "splash" : "feather", furOf());
       if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
       return;
@@ -1391,6 +1396,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       const m = it.mesh, x = it.x + (it.len || l.len) / 2, z = cz(l.row) + (l.zOff || 0);
       // keep traffic in front of the camera out of the hippo close-up
       m.visible = !(closeUp && l.type !== "river" && l.row > hippoAt.z && l.row <= hippoAt.z + 4);
+      // rafts, logs and lily pads drifting through the hippo would spoil the shot
+      if (closeUp && l.type === "river" && Math.abs(cz(l.row) - hippoAt.z - .5) < 1.8 && it.x < hippoAt.x + 1.6 && it.x + l.len > hippoAt.x - 1.6) m.visible = false;
       if (l.type === "rail") { m.position.set(x, 0, z); continue; }
       if (l.type === "road") {
         m.position.set(x, 0, z);
@@ -1518,10 +1525,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           }
         } else if (dieKind === "water") {
           const t = dieT; hippoAnim(t);
-          const mouth = atSnout(.75, .55);
-          if (t < .5) { py = -.05 + Math.sin(clock * 14) * .05; player.rotation.z = Math.sin(clock * 16) * .35; { const a = atSnout(.3); ox = a.x; oz = a.z; } }
+          const mouth = atSnout(.78, .35);
+          const fell = new THREE.Vector3(Math.min(COLS - .3, Math.max(.3, duck.x + .5)), -.05, cz(duck.row));   // where the animal splashed in
+          if (t < .5) { py = -.05 + Math.sin(clock * 14) * .05; player.rotation.z = Math.sin(clock * 16) * .35; ox = fell.x; oz = fell.z; }
           else if (t < .85) {
-            const q = (t - .5) / .35, start = atSnout(.3, 0);
+            const q = (t - .5) / .35, start = fell.clone();
             const p = start.lerp(mouth, q); ox = p.x; oz = p.z; py = p.y + Math.sin(q * Math.PI) * .8;
             player.rotation.set(q * 7, faceAngle, 0); player.scale.setScalar(1 - q * .25);
           } else {
@@ -1532,8 +1540,9 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
             // only the head stays visible, sticking out between the closed jaws at the tip of the snout
             const toCamH = new THREE.Vector3(camera.position.x - hippoAt.x, 0, camera.position.z - hippoAt.z).normalize();
             const sc = .62, headY = player.userData.hero ? .82 : .6;
-            const tip = atSnout(.86).add(toCamH.clone().multiplyScalar(.05));
-            ox = tip.x; oz = tip.z; py = hippo.position.y + .27 - headY * sc + Math.sin(t * 9) * .015;
+            const tip = atSnout(.82).add(toCamH.clone().multiplyScalar(.04));
+            const mouthY = hippo.position.y + .14 * 1.35 + .08;
+            ox = tip.x; oz = tip.z; py = mouthY - headY * sc + Math.sin(t * 9) * .015;
             player.rotation.set(Math.sin(t * 17) * .05, Math.atan2(-toCamH.x, -toCamH.z) + Math.sin(t * 7) * .12, Math.sin(t * 13) * .05);
             player.scale.set(sc, sc - sq * .04, sc);
             showOnlyHead(player, true);
