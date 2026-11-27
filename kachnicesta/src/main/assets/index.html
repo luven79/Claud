@@ -1107,8 +1107,16 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   }
   // cartoon eyes that shoot out of the animal's head towards the viewer while the hippo bites
   const popGroup = new THREE.Group(); popGroup.visible = false; scene.add(popGroup);
+  // coiled spring of unit length along +y; stretching it along y spreads the coils like a real spring
+  const SPRING_GEO = (() => {
+    const turns = 9, r = .055;
+    class Helix extends THREE.Curve {
+      getPoint(t, target = new THREE.Vector3()) { const a = t * turns * Math.PI * 2; return target.set(Math.cos(a) * r, t, Math.sin(a) * r); }
+    }
+    return new THREE.TubeGeometry(new Helix(), 220, .014, 6, false);
+  })();
   const popEyes = [-1, 1].map(side => {
-    const stalk = new THREE.Mesh(new THREE.CylinderGeometry(.045, .06, 1, 8), new THREE.MeshLambertMaterial({ color: 0xe05a7a }));
+    const stalk = new THREE.Mesh(SPRING_GEO, new THREE.MeshToonMaterial({ color: 0xd9dde3, gradientMap: toonRamp }));
     const ball = new THREE.Mesh(new THREE.SphereGeometry(.3, 18, 14), new THREE.MeshLambertMaterial({ color: 0xffffff, emissive: 0x222222 }));
     const iris = new THREE.Mesh(new THREE.SphereGeometry(.15, 14, 10), new THREE.MeshLambertMaterial({ color: 0x2b7bd6 }));
     const pupil = new THREE.Mesh(new THREE.SphereGeometry(.09, 12, 10), new THREE.MeshBasicMaterial({ color: 0x0a0a0a }));
@@ -1134,7 +1142,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       const dir = toCam.clone().multiplyScalar(.45).add(right.clone().multiplyScalar(e.side * (.45 + wob * .3))).add(UP.clone().multiplyScalar(1 + wob * .3)).normalize();
       const tip = head.clone().add(right.clone().multiplyScalar(e.side * .13)).add(dir.clone().multiplyScalar(Math.max(.05, len)));
       const base = head.clone().add(right.clone().multiplyScalar(e.side * .13));
-      e.stalk.position.copy(base).lerp(tip, .5);
+      e.stalk.position.copy(base);
       e.stalk.scale.set(1, Math.max(.02, base.distanceTo(tip)), 1);
       e.stalk.quaternion.setFromUnitVectors(UP, tip.clone().sub(base).normalize());
       const size = .25 + amount * .3;
