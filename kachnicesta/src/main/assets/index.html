@@ -108,10 +108,10 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       { speed: 1.4, dir: -1, len: 3, n: 3, kind: "lily", sink: true } ] },
     { type: "grass" },
     { type: "road", lanes: [
-      { speed: 2.4, dir: 1,  len: 1, n: 3, kind: "car" },
-      { speed: 1.0, dir: -1, len: 2, n: 2, kind: "truck" },
-      { speed: 1.8, dir: 1,  len: 1, n: 3, kind: "car" },
-      { speed: 1.3, dir: -1, len: 1, n: 3, kind: "bike" } ] },
+      { dir: 1,  n: 3, kind: "mixed" },
+      { dir: -1, n: 3, kind: "mixed" },
+      { dir: 1,  n: 3, kind: "mixed" },
+      { dir: -1, n: 3, kind: "mixed" } ] },
     { type: "grass" },
     { type: "rail", lanes: [
       { speed: 13, dir: 1, len: 9, n: 1, kind: "train" } ] },
@@ -124,11 +124,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       { speed: 1.2, dir: -1, len: 3, n: 3, kind: "lily", sink: true } ] },
     { type: "grass" },
     { type: "road", lanes: [
-      { speed: 0.9, dir: -1, len: 2, n: 2, kind: "truck" },
-      { speed: 2.3, dir: 1,  len: 1, n: 3, kind: "car" },
-      { speed: 0.7, dir: -1, len: 1, n: 3, kind: "tractor" },
-      { speed: 1.6, dir: 1,  len: 1, n: 3, kind: "car" },
-      { speed: 1.2, dir: -1, len: 1, n: 3, kind: "bike" } ] },
+      { dir: -1, n: 3, kind: "mixed" },
+      { dir: 1,  n: 3, kind: "mixed" },
+      { dir: -1, n: 3, kind: "mixed" },
+      { dir: 1,  n: 3, kind: "mixed" },
+      { dir: -1, n: 3, kind: "mixed" } ] },
     { type: "grass" },
   ];
   const SEGMENTS = [], LANES = [];
@@ -494,10 +494,67 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
   // ---------- lanes ----------
   const laneGroup = new THREE.Group(); scene.add(laneGroup);
+  // mixed road traffic: cars fastest, bikes medium, trucks slow, tractors a bit slower than trucks
+  const VEH = {
+    car:     { len: 1, speed: 2.3,  weight: .42 },
+    bike:    { len: 1, speed: 1.35, weight: .2 },
+    truck:   { len: 2, speed: 1.05, weight: .2 },
+    tractor: { len: 1, speed: .82,  weight: .18 },
+  };
+  function pickKind() {
+    let r = Math.random();
+    for (const k in VEH) { r -= VEH[k].weight; if (r <= 0) return k; }
+    return "car";
+  }
+  function setVehicle(l, it, kind) {
+    if (it.mesh) laneGroup.remove(it.mesh);
+    const m = kind === "car" ? makeCar(CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)])
+      : kind === "truck" ? makeTruck() : kind === "tractor" ? makeTractor() : makeBike();
+    if (l.dir < 0) m.rotation.y = Math.PI;
+    it.mesh = m; it.kind = kind; it.len = VEH[kind].len;
+    it.speed = VEH[kind].speed * rand(.92, 1.08) * (1 + 0.15 * (level - 1));
+    laneGroup.add(m);
+  }
+  // u runs along the direction of travel; the vehicle covers [u, u + len]
+  const uToX = (l, it) => l.dir > 0 ? it.u : COLS - it.u - it.len;
+  function trafficStep(l, dt) {
+    const its = l.items.slice().sort((a, b) => b.u - a.u);     // front vehicle first
+    for (let i = 0; i < its.length; i++) {
+      const it = its[i];
+      if (it.crashed) continue;
+      let nu = it.u + it.speed * dt;
+      const ahead = i > 0 ? its[i - 1] : null;
+      if (ahead) nu = Math.min(nu, ahead.u - it.len - .35);      // no overtaking: queue behind slower traffic
+      it.u = nu;
+    }
+    for (const it of l.items) {
+      if (it.u > COLS + 2) {
+        setVehicle(l, it, pickKind());
+        const others = l.items.filter(o => o !== it), last = others.reduce((m, o) => o.u < m.u ? o : m, others[0]);
+        // a faster vehicle starts further back so it rarely catches up with a slow one before the edge
+        let gap = rand(1.2, 4);
+        if (it.speed > last.speed) gap += Math.min(7, (COLS + 2 - last.u) / last.speed * (it.speed - last.speed) * .5);
+        it.u = Math.min(-it.len - 1.5 - rand(0, 2), last.u - it.len - gap);
+      }
+      it.x = uToX(l, it);
+    }
+  }
   function buildLanes() {
     while (laneGroup.children.length) laneGroup.remove(laneGroup.children[0]);
     const mult = 1 + 0.15 * (level - 1);
     lanes = LANES.map(L => {
+      if (L.kind === "mixed") {
+        const lane = { ...L, mixed: true, v: 0, items: [] };
+        let u = COLS + 1 - rand(0, 2);
+        for (let i = 0; i < L.n; i++) {
+          const it = { phase: Math.random() * 6 };
+          setVehicle(lane, it, pickKind());
+          it.u = u - it.len; it.x = uToX(lane, it);
+          u = it.u - rand(1.5, 4.5);
+          lane.items.push(it);
+        }
+        return lane;
+      }
       const items = Array.from({ length: L.n }, (_, i) => {
         const it = { x: (i * PERIOD) / L.n + Math.random() * .6, sinks: !!L.sink && i % 2 === 0, phase: Math.random() * 6 };
         let m;
@@ -747,7 +804,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
       return;
     }
-    const vk = vehicleKind(lane);
+    const vk = lane.kind === "train" ? "train" : item.kind === "truck" ? "truck" : item.kind === "bike" ? "bike" : "car";
     if (vk === "train") {
       dieKind = "train"; dieTrain = { lane, it: item }; shake = .5;
       burst(duck.x + .5, cz(duck.row), .5, "feather", furOf());
@@ -761,10 +818,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     const options = [];
     for (const r of [duck.row - 1, duck.row + 1]) {
       const l = laneAt(r);
-      if (!l || l.type !== "road" || l.kind === "bike") continue;
+      if (!l || !l.mixed) continue;
       for (const v of l.items) {
-        const front = l.v > 0 ? v.x + l.len : v.x;
-        const land = front + l.v * 1.1;             // where this vehicle will be about 1 s from now
+        if (v.kind === "bike" || v.crashed) continue;
+        const vx = l.dir * v.speed, front = l.dir > 0 ? v.x + v.len : v.x;
+        const land = front + vx * 1.1;             // where this vehicle will be about 1 s from now
         if (land > .3 && land < COLS - 1.3) options.push({ lane: l, v, land });
       }
     }
@@ -813,6 +871,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function update(dt) {
     clock += dt; shake = Math.max(0, shake - dt);
     for (const l of lanes) for (const it of l.items) {
+      if (l.mixed) { if (it === l.items[0]) trafficStep(l, dt); continue; }
       if (it.crashed) continue;
       if (l.kind === "train") { trainStep(l, it, dt); continue; }
       it.x += l.v * dt;
@@ -832,8 +891,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         if (toss.t >= .55) { duck.x = toss.toX; duck.row = toss.toRow; duck.fromX = duck.x; duck.fromRow = duck.row; }
         const tg = toss.target;
         if (tg && toss.t >= .55) {
-          const a = tg.v.x + .1, b = tg.v.x + tg.lane.len - .1, cx = duck.x + .5;
-          if (cx + .3 > a && cx - .3 < b) { startHit(vehicleKind(tg.lane)); return; }
+          const a = tg.v.x + .1, b = tg.v.x + tg.v.len - .1, cx = duck.x + .5;
+          if (cx + .3 > a && cx - .3 < b) { startHit(tg.v.kind === "truck" ? "truck" : "car"); return; }
         }
         if (toss.t > 3) startHit("car");
         return;
@@ -852,7 +911,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     const lane = laneAt(duck.row), cx = duck.x + .5;
     if (lane && (lane.type === "road" || lane.type === "rail")) {
-      for (const it of lane.items) { const a = it.x + .12, b = it.x + lane.len - .12; if (cx + .3 > a && cx - .3 < b) { die("hit", lane, it); return; } }
+      for (const it of lane.items) { const a = it.x + .12, b = it.x + (it.len || lane.len) - .12; if (cx + .3 > a && cx - .3 < b) { die("hit", lane, it); return; } }
     } else if (lane && lane.type === "river" && duck.hop === 1) {
       const on = lane.items.find(it => cx > it.x + .05 && cx < it.x + lane.len - .05 && lilyState(it) !== "under");
       if (!on) { die("water"); return; }
@@ -877,18 +936,18 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function render(dt) {
     // lanes
     for (const l of lanes) for (const it of l.items) {
-      const m = it.mesh, x = it.x + l.len / 2, z = cz(l.row);
+      const m = it.mesh, x = it.x + (it.len || l.len) / 2, z = cz(l.row);
       // keep traffic in front of the camera out of the hippo close-up
       m.visible = !(closeUp && l.type !== "river" && l.row > hippoAt.z && l.row <= hippoAt.z + 4);
       if (l.type === "rail") { m.position.set(x, 0, z); continue; }
       if (l.type === "road") {
         m.position.set(x, 0, z);
-        if (l.kind === "bike") {
+        if (it.kind === "bike") {
           const fall = it.crashed ? 1 : 0; m.userData.fall = (m.userData.fall || 0) + (fall - (m.userData.fall || 0)) * Math.min(1, dt * 10);
           m.rotation.x = m.userData.fall * 1.45; m.position.y = m.userData.fall * .14;
         }
-        if (l.kind === "bike" && !it.crashed) { const s = Math.sin(clock * 12) * .08; m.userData.legs[0].position.y = .32 + s; m.userData.legs[1].position.y = .32 - s; }
-        if (l.kind === "tractor") { const sm = m.userData.smoke, p = (clock * 1.5) % 1; sm.position.set(.28 - p * .3, .85 + p * .6, -.08); sm.material.opacity = .6 * (1 - p); sm.scale.setScalar(.1 + p * .2); m.position.y = Math.abs(Math.sin(clock * 9)) * .02; }
+        if (it.kind === "bike" && !it.crashed) { const s = Math.sin(clock * 12) * .08; m.userData.legs[0].position.y = .32 + s; m.userData.legs[1].position.y = .32 - s; }
+        if (it.kind === "tractor") { const sm = m.userData.smoke, p = (clock * 1.5) % 1; sm.position.set(.28 - p * .3, .85 + p * .6, -.08); sm.material.opacity = .6 * (1 - p); sm.scale.setScalar(.1 + p * .2); m.position.y = Math.abs(Math.sin(clock * 9)) * .02; }
       } else {
         const st = l.kind === "lily" ? lilyState(it) : "up";
         let y = -.1 + Math.sin(clock * 2 + it.phase) * .025, dx = 0;
