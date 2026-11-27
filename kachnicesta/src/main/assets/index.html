@@ -675,7 +675,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     const toCam = camera.position.clone().sub(head).normalize();
     const right = new THREE.Vector3().crossVectors(toCam, UP).normalize();
     const spring = 1 - Math.exp(-5 * t) * Math.cos(16 * t);              // shoots out, overshoots, wobbles
-    const len = amount * .9 * spring;
+    const len = amount * .75 * spring;
     for (const e of popEyes) {
       const wob = Math.sin(t * 24 + e.side * 3) * Math.exp(-t * 1.2) * .35;
       const dir = toCam.clone().multiplyScalar(.45).add(right.clone().multiplyScalar(e.side * (.45 + wob * .3))).add(UP.clone().multiplyScalar(1 + wob * .3)).normalize();
@@ -684,7 +684,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       e.stalk.position.copy(base).lerp(tip, .5);
       e.stalk.scale.set(1, Math.max(.02, base.distanceTo(tip)), 1);
       e.stalk.quaternion.setFromUnitVectors(UP, tip.clone().sub(base).normalize());
-      const size = .3 + amount * .45;
+      const size = .25 + amount * .3;
       e.ball.position.copy(tip); e.ball.scale.setScalar(size);
       const look = toCam.clone().multiplyScalar(.24 * size);
       const jitter = new THREE.Vector3(Math.sin(t * 19 + e.side) * .04, Math.cos(t * 23) * .04, 0);
@@ -967,9 +967,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
             // body inside the closed jaws, only the head pokes out; eyes shoot out; then down with the hippo
             const sq = t < .95 ? (t - .85) / .1 : 1;
             // held crosswise: head sticks out of one side of the mouth, bottom and kicking feet out of the other
-            { const a = atSnout(1.2); ox = a.x; oz = a.z; } py = hippo.position.y + .1 + Math.sin(t * 9) * .015;
-            player.rotation.set(Math.sin(t * 17) * .1, HIPPO_TURN + Math.PI / 2 + Math.sin(t * 7) * .08, 0);
-            player.scale.set(.55, .55 - sq * .1, .55 + sq * .75);
+            // body inside the mouth, head poking out of the side of the jaws towards the camera
+            const toCamH = new THREE.Vector3(camera.position.x - hippoAt.x, 0, camera.position.z - hippoAt.z).normalize();
+            { const a = atSnout(.72).add(toCamH.clone().multiplyScalar(.42)); ox = a.x; oz = a.z; } py = hippo.position.y + .08 + Math.sin(t * 9) * .015;
+            player.rotation.set(Math.sin(t * 17) * .06, Math.atan2(-toCamH.x, -toCamH.z) + Math.sin(t * 7) * .12, Math.sin(t * 13) * .05);
+            player.scale.set(.6, .6 - sq * .08, .6);
             const kick = Math.sin(t * 26) * .9;
             for (const n of ["fl", "fr"]) { const f = player.getObjectByName(n); if (f) { f.rotation.x = n === "fl" ? kick : -kick; f.position.y = .03 + Math.abs(kick) * .04; } }
             const under = Math.max(0, (t - 2.6) / .6);
