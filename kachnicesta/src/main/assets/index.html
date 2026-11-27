@@ -526,7 +526,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
   // ================= LOGIC =================
   function resetDuck() { duck = { x: 5, row: START_ROW, fromX: 5, fromRow: START_ROW, hop: 1, face: "up" }; timeLeft = TIME_LIMIT; furthest = START_ROW; player.scale.set(1, 1, 1); player.visible = true; }
-  function newGame() { score = 0; level = 1; lives = 3; nests = NEST_COLS.map(() => false); syncNests(); buildLanes(); resetDuck(); state = "play"; hideOverlay(); updateHud(); }
+  function newGame() { clearSplats(); score = 0; level = 1; lives = 3; nests = NEST_COLS.map(() => false); syncNests(); buildLanes(); resetDuck(); state = "play"; hideOverlay(); updateHud(); }
   function syncNests() { nestGroups.forEach((n, i) => { n.chick.visible = nests[i]; n.eggs.visible = !nests[i]; }); }
 
   function move(dir) {
@@ -541,13 +541,65 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     if (!target || target.type !== "river") nx = Math.round(nx);
     duck.fromX = duck.x; duck.fromRow = duck.row; duck.x = nx; duck.row = nr; duck.hop = 0;
   }
-  function die(kind) {
+  // ---- deaths: each kind has its own animation; a bike crash throws the animal under the next vehicle ----
+  const DIE_TIME = { car: 1.6, truck: 1.5, water: 1.1, time: 1.1, reeds: 1.1 };
+  let dieT = 0, dieFrom = new THREE.Vector3(), toss = null, crashedBike = null;
+  const splats = [];
+  const furOf = () => ANIMALS.find(a => a.id === animalId).fur;
+  function addSplat(x, z) {
+    const g = new THREE.Group(); g.position.set(x, -0.005, z);
+    const red = new THREE.MeshLambertMaterial({ color: 0xc8102e });
+    const main = new THREE.Mesh(new THREE.CircleGeometry(.42, 18), red); main.rotation.x = -Math.PI / 2; main.scale.set(1.2, .8, 1); g.add(main);
+    for (let i = 0; i < 9; i++) {
+      const d = new THREE.Mesh(new THREE.CircleGeometry(rand(.05, .14), 10), red); d.rotation.x = -Math.PI / 2;
+      const a = rand(0, Math.PI * 2), r = rand(.45, .8); d.position.set(Math.cos(a) * r, .001, Math.sin(a) * r * .7); g.add(d);
+    }
+    const tread = new THREE.MeshLambertMaterial({ color: 0x7a0a1c });
+    for (let i = 0; i < 4; i++) { const t = new THREE.Mesh(new THREE.PlaneGeometry(.12, .5), tread); t.rotation.x = -Math.PI / 2; t.position.set(-.5 + i * .33, .002, 0); t.rotation.z = Math.PI / 2; g.add(t); }
+    scene.add(g); splats.push(g);
+    while (splats.length > 8) scene.remove(splats.shift());
+  }
+  function clearSplats() { while (splats.length) scene.remove(splats.pop()); }
+  function vehicleKind(lane) { return lane.kind === "truck" ? "truck" : lane.kind === "bike" ? "bike" : "car"; }
+  function startHit(kind) {
+    dieKind = kind; dieT = 0;
+    dieFrom.set(duck.x + .5, .3, cz(duck.row));
+    shake = kind === "truck" ? .45 : .3;
+    if (kind === "truck") { addSplat(duck.x + .5, cz(duck.row)); burst(duck.x + .5, cz(duck.row), .2, "feather", 0xc8102e); }
+    burst(duck.x + .5, cz(duck.row), .4, "feather", furOf());
+    if (navigator.vibrate) try { navigator.vibrate(kind === "truck" ? [60, 40, 120] : 90); } catch (e) {}
+  }
+  function die(kind, lane, item) {
     if (state !== "play") return;
-    state = "dying"; dieKind = kind; dieTimer = 1.1; shake = kind === "road" ? .35 : .15;
-    burst(duck.x + .5, cz(duck.row), .4, kind === "water" ? "splash" : "feather", ANIMALS.find(a => a.id === animalId).fur);
-    if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
+    state = "dying"; dieT = 0;
+    if (kind !== "hit") {
+      dieKind = kind; shake = .15;
+      burst(duck.x + .5, cz(duck.row), .4, kind === "water" ? "splash" : "feather", furOf());
+      if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
+      return;
+    }
+    const vk = vehicleKind(lane);
+    if (vk !== "bike") { startHit(vk); return; }
+    // cyclist crash: the bike falls over and the animal is thrown into a neighbouring car/truck lane
+    item.crashed = true; crashedBike = item; dieKind = "bike"; shake = .2;
+    burst(duck.x + .5, cz(duck.row), .4, "feather", furOf());
+    const options = [];
+    for (const r of [duck.row - 1, duck.row + 1]) {
+      const l = laneAt(r);
+      if (!l || l.type !== "road" || l.kind === "bike") continue;
+      for (const v of l.items) {
+        const front = l.v > 0 ? v.x + l.len : v.x;
+        const land = front + l.v * 1.1;             // where this vehicle will be about 1 s from now
+        if (land > .3 && land < COLS - 1.3) options.push({ lane: l, v, land });
+      }
+    }
+    const pick = options.length ? options[Math.floor(Math.random() * options.length)] : null;
+    toss = { fromX: duck.x, fromRow: duck.row, toX: pick ? pick.land - .5 : duck.x, toRow: pick ? pick.lane.row : duck.row, target: pick, t: 0 };
+    if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
   }
   function afterDeath() {
+    if (crashedBike) { crashedBike.crashed = false; crashedBike = null; }
+    toss = null; player.rotation.set(0, faceAngle, 0);
     lives--; updateHud();
     if (lives <= 0) {
       state = "over";
@@ -563,7 +615,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     const pts = 50 + Math.ceil(timeLeft) * 2; score += pts;
     popup("+" + pts, col + .5, 1, cz(0)); burst(col + .5, cz(0), .6, "star");
     if (nests.every(Boolean)) {
-      score += 500; level++; nests = nests.map(() => false);
+      score += 500; level++; nests = nests.map(() => false); clearSplats();
       setTimeout(syncNests, 900); buildLanes(); popup("Kolo " + level + "!", COLS / 2, 1.5, 2);
     }
     if (score > best) best = score;
@@ -572,11 +624,27 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function update(dt) {
     clock += dt; shake = Math.max(0, shake - dt);
     for (const l of lanes) for (const it of l.items) {
+      if (it.crashed) continue;
       it.x += l.v * dt;
       if (l.v > 0 && it.x > COLS + 2) it.x -= PERIOD;
       if (l.v < 0 && it.x + l.len < -2) it.x += PERIOD;
     }
-    if (state === "dying") { dieTimer -= dt; if (dieTimer <= 0) afterDeath(); return; }
+    if (state === "dying") {
+      dieT += dt;
+      if (dieKind === "bike") {
+        toss.t += dt;
+        if (toss.t >= .55) { duck.x = toss.toX; duck.row = toss.toRow; duck.fromX = duck.x; duck.fromRow = duck.row; }
+        const tg = toss.target;
+        if (tg && toss.t >= .55) {
+          const a = tg.v.x + .1, b = tg.v.x + tg.lane.len - .1, cx = duck.x + .5;
+          if (cx + .3 > a && cx - .3 < b) { startHit(vehicleKind(tg.lane)); return; }
+        }
+        if (toss.t > 3) startHit("car");
+        return;
+      }
+      if (dieT >= (DIE_TIME[dieKind] || 1.2)) afterDeath();
+      return;
+    }
     if (state !== "play") return;
     timeLeft -= dt; if (timeLeft <= 0) { die("time"); return; }
     if (duck.hop < 1) {
@@ -588,7 +656,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     const lane = laneAt(duck.row), cx = duck.x + .5;
     if (lane && lane.type === "road") {
-      for (const it of lane.items) { const a = it.x + .12, b = it.x + lane.len - .12; if (cx + .3 > a && cx - .3 < b) { die("road"); return; } }
+      for (const it of lane.items) { const a = it.x + .12, b = it.x + lane.len - .12; if (cx + .3 > a && cx - .3 < b) { die("hit", lane, it); return; } }
     } else if (lane && lane.type === "river" && duck.hop === 1) {
       const on = lane.items.find(it => cx > it.x + .05 && cx < it.x + lane.len - .05 && lilyState(it) !== "under");
       if (!on) { die("water"); return; }
@@ -615,7 +683,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       const m = it.mesh, x = it.x + l.len / 2, z = cz(l.row);
       if (l.type === "road") {
         m.position.set(x, 0, z);
-        if (l.kind === "bike") { const s = Math.sin(clock * 12) * .08; m.userData.legs[0].position.y = .32 + s; m.userData.legs[1].position.y = .32 - s; }
+        if (l.kind === "bike") {
+          const fall = it.crashed ? 1 : 0; m.userData.fall = (m.userData.fall || 0) + (fall - (m.userData.fall || 0)) * Math.min(1, dt * 10);
+          m.rotation.x = m.userData.fall * 1.45; m.position.y = m.userData.fall * .14;
+        }
+        if (l.kind === "bike" && !it.crashed) { const s = Math.sin(clock * 12) * .08; m.userData.legs[0].position.y = .32 + s; m.userData.legs[1].position.y = .32 - s; }
         if (l.kind === "tractor") { const sm = m.userData.smoke, p = (clock * 1.5) % 1; sm.position.set(.28 - p * .3, .85 + p * .6, -.08); sm.material.opacity = .6 * (1 - p); sm.scale.setScalar(.1 + p * .2); m.position.y = Math.abs(Math.sin(clock * 9)) * .02; }
       } else {
         const st = l.kind === "lily" ? lilyState(it) : "up";
@@ -653,10 +725,30 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       faceAngle += d * Math.min(1, dt * 18);
       player.rotation.set(0, state === "menu" || state === "over" ? Math.PI + Math.sin(clock * .8) * .6 : faceAngle, 0);
       const b = player.userData.body;
+      let ox = null, oz = null;
       if (state === "dying") {
-        const k = 1 - dieTimer / 1.1;
-        if (dieKind === "road") { player.scale.set(1.3, Math.max(.12, 1 - k * 6), 1.3); py = 0; }
-        else if (dieKind === "water") { py = -k * .8; player.rotation.z = k * 1.5; }
+        const k = Math.min(1, dieT / (DIE_TIME[dieKind] || 1.2));
+        player.visible = true;
+        if (dieKind === "car") {
+          // launched up and towards the viewer, spinning, getting bigger
+          const e = k * k * (3 - 2 * k), toCam = camera.position.clone().sub(dieFrom);
+          const p = dieFrom.clone().add(toCam.multiplyScalar(e * .82));
+          ox = p.x; oz = p.z; py = p.y + Math.sin(k * Math.PI) * 2.5;
+          player.rotation.set(k * 14, faceAngle + k * 9, k * 6);
+          player.scale.setScalar(1 + e * 1.6);
+          if (k > .93) player.visible = false;
+        } else if (dieKind === "truck") {
+          const f = Math.min(1, dieT / .08);
+          player.scale.set(1 + f * .7, Math.max(.05, 1 - f), 1 + f * .7); py = .01;
+          player.visible = dieT < 1.2;
+        } else if (dieKind === "bike") {
+          const t = Math.min(1, toss.t / .55);
+          ox = toss.fromX + (toss.toX - toss.fromX) * t + .5;
+          oz = cz(toss.fromRow + (toss.toRow - toss.fromRow) * t);
+          py = Math.sin(t * Math.PI) * 1.6;
+          player.rotation.set(t * 6.3, faceAngle, t < 1 ? t * 3 : Math.PI / 2);
+          if (t >= 1) { py = .18; player.rotation.set(0, faceAngle + Math.sin(clock * 6) * .3, Math.PI / 2); }
+        } else if (dieKind === "water") { py = -k * .8; player.rotation.z = k * 1.5; }
         else { player.rotation.y = faceAngle + k * 12; py = Math.sin(k * Math.PI) * .5; }
       } else {
         const sq = 1 + lift * .15; player.scale.set(1 / Math.sqrt(sq), sq, 1 / Math.sqrt(sq));
@@ -665,7 +757,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         if (el) { el.rotation.x = lift * .6 + Math.sin(clock * 2) * .05; er.rotation.x = lift * .6 + Math.sin(clock * 2 + 1) * .05; }
         b.rotation.z = h === 1 ? Math.sin(clock * 3) * .03 : 0;
       }
-      player.position.set(px, py, cz(pr));
+      player.position.set(ox !== null ? ox : px, py, oz !== null ? oz : cz(pr));
       blob.position.set(px, .01, cz(pr)); blob.scale.setScalar(1 - lift * .35); blob.visible = !(lane && lane.type === "river" && h === 1) && state !== "dying";
 
       // camera follows the duck in depth
