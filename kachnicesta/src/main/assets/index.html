@@ -565,6 +565,20 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     it.speed = VEH[kind].speed * rand(.92, 1.08) * (1 + 0.15 * (level - 1));
     laneGroup.add(m);
   }
+  // distance a follower would close on `ahead` before `ahead` leaves the screen
+  function catchUp(it, ahead) {
+    if (!ahead || it.speed <= ahead.speed) return 0;
+    return Math.max(0, (COLS + 2 - ahead.u) / ahead.speed * (it.speed - ahead.speed));
+  }
+  // choose a vehicle for the back of the queue; re-roll fast ones that would end up stuck behind slow traffic
+  function spawnBehind(l, it, ahead) {
+    for (let tries = 0; tries < 8; tries++) {
+      setVehicle(l, it, pickKind(l));
+      if (catchUp(it, ahead) <= 12) return catchUp(it, ahead);
+    }
+    setVehicle(l, it, ahead.kind);
+    return catchUp(it, ahead);
+  }
   // u runs along the direction of travel; the vehicle covers [u, u + len]
   const uToX = (l, it) => l.dir > 0 ? it.u : COLS - it.u - it.len;
   function trafficStep(l, dt) {
@@ -579,12 +593,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     for (const it of l.items) {
       if (it.u > COLS + 2) {
-        setVehicle(l, it, pickKind(l));
         const others = l.items.filter(o => o !== it), last = others.reduce((m, o) => o.u < m.u ? o : m, others[0]);
-        // a faster vehicle starts further back so it rarely catches up with a slow one before the edge
-        // always leave room to cross: single-kind lanes (bike lane, sidewalk) get wide gaps
-        let gap = l.only ? rand(2.6, 5) : rand(1.7, 4);
-        if (it.speed > last.speed) gap += Math.min(7, (COLS + 2 - last.u) / last.speed * (it.speed - last.speed) * .5);
+        // always leave room to cross (single-kind lanes get wider gaps), plus enough room
+        // that a faster vehicle never catches up with the one in front while it is on screen
+        const need = spawnBehind(l, it, last);
+        const gap = (l.only ? rand(2.6, 5) : rand(1.7, 4)) + need;
         it.u = Math.min(-it.len - 1.5 - rand(0, 2), last.u - it.len - gap);
       }
       it.x = uToX(l, it);
@@ -596,13 +609,13 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     lanes = LANES.map(L => {
       if (L.kind === "mixed") {
         const lane = { ...L, mixed: true, v: 0, items: [] };
-        let u = COLS + 1 - rand(0, 2);
+        let ahead = null;
         for (let i = 0; i < L.n; i++) {
           const it = { phase: Math.random() * 6 };
-          setVehicle(lane, it, pickKind(lane));
-          it.u = u - it.len; it.x = uToX(lane, it);
-          u = it.u - (L.only ? rand(2.6, 5) : rand(1.7, 4.5));
-          lane.items.push(it);
+          if (!ahead) { setVehicle(lane, it, pickKind(lane)); it.u = COLS - rand(0, 3) - it.len; }
+          else { const need = spawnBehind(lane, it, ahead); it.u = ahead.u - it.len - (L.only ? rand(2.6, 5) : rand(1.7, 4.5)) - need; }
+          it.x = uToX(lane, it);
+          lane.items.push(it); ahead = it;
         }
         return lane;
       }
@@ -743,20 +756,34 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function spawnLurkers() {
     for (const sgm of SEGMENTS) if (sgm.type === "river") for (let i = 0; i < 2; i++) {
       const m = makeLurker();
-      lurkers.push({ m, x: rand(1, COLS - 1), z: rand(sgm.r0 + .5, sgm.r0 + sgm.n - .5), v: rand(.15, .35) * (Math.random() < .5 ? -1 : 1), phase: rand(0, 10), r0: sgm.r0, n: sgm.n });
+      const row = sgm.r0 + Math.floor(Math.random() * sgm.n);
+      lurkers.push({ m, x: rand(1, COLS - 1), row, y: -.7, v: rand(.15, .3) * (Math.random() < .5 ? -1 : 1), phase: rand(0, 10), r0: sgm.r0, n: sgm.n });
     }
   }
   function updateLurkers(dt) {
+    // something floating within this distance of a hippo makes it duck under
+    const blockedAt = (row, x, pad = .75) => {
+      const l = laneAt(row); if (!l) return false;
+      return l.items.some(it => x > it.x - pad && x < it.x + l.len + pad);   // sunken lily pads count too: they come back up
+    };
     for (const L of lurkers) {
       L.x += L.v * dt;
-      if (L.x < .3 || L.x > COLS - .3) L.v *= -1;
-      const c = (clock + L.phase) % 10;                    // 0–7 up, 7–8 dive, 8–9.2 under, 9.2–10 rise
-      let y = -.1;
-      if (c >= 7 && c < 8) y = -.1 - (c - 7) * .6; else if (c >= 8 && c < 9.2) y = -.7; else if (c >= 9.2) y = -.7 + (c - 9.2) / .8 * .6;
-      if (c >= 8 && c < 8.05) { L.z = rand(L.r0 + .5, L.r0 + L.n - .5); L.x = rand(1, COLS - 1); }
-      L.m.position.set(L.x, y + Math.sin(clock * 2 + L.phase) * .02, L.z);
+      if (L.x < .5 || L.x > COLS - .5) L.v *= -1;
+      const c = (clock + L.phase) % 10;                    // surfaces for ~7 s, then takes a breath under water
+      const blocked = blockedAt(L.row, L.x);
+      const wantUp = !blocked && c < 7;
+      L.y += ((wantUp ? -.1 : -.75) - L.y) * Math.min(1, dt * (wantUp ? 2.5 : 6));
+      if (L.y < -.6 && (blocked || c >= 7)) {
+        // under water: swim to a free spot before coming up again
+        for (let k = 0; k < 10; k++) {
+          const row = L.r0 + Math.floor(Math.random() * L.n), x = rand(1, COLS - 1);
+          if (!blockedAt(row, x, 1.6)) { L.row = row; L.x = x; break; }
+        }
+      }
+      L.m.visible = L.y > -.68;
+      L.m.position.set(L.x, L.y + Math.sin(clock * 2 + L.phase) * .02, cz(L.row));
       // turn to watch the player
-      if (duck) { const dx = duck.x + .5 - L.x, dz = cz(duck.row) - L.z; let d = Math.atan2(dx, dz) - L.m.rotation.y; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; L.m.rotation.y += d * Math.min(1, dt * 2); }
+      if (duck) { const dx = duck.x + .5 - L.x, dz = cz(duck.row) - cz(L.row); let d = Math.atan2(dx, dz) - L.m.rotation.y; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; L.m.rotation.y += d * Math.min(1, dt * 2); }
       const blink = ((clock + L.phase * 1.7) % 3.5) < .14;
       for (const lid of L.m.userData.lids) lid.visible = blink;
     }
