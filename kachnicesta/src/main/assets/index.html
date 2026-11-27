@@ -318,15 +318,27 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function tree(x, z, s = 1) {
     const g = new THREE.Group(); g.position.set(x, 0, z); g.scale.setScalar(s);
     box(0.25, 0.8, 0.25, 0x7a4f24, 0, 0.4, 0, g);
-    box(0.9, 0.6, 0.9, 0x3f8f35, 0, 1.0, 0, g); box(0.65, 0.5, 0.65, 0x56a845, 0, 1.45, 0, g); box(0.35, 0.3, 0.35, 0x6cc255, 0, 1.8, 0, g);
+    for (const [r, y, c, dx] of [[.55, 1.05, 0x3f8f35, 0], [.42, 1.45, 0x56a845, .08], [.26, 1.78, 0x6cc255, -.04]]) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(r, 12, 10), M(c)); b.position.set(dx, y, 0); b.castShadow = true; b.receiveShadow = true; g.add(b);
+    }
+    if (Math.random() < .4) for (let i = 0; i < 4; i++) { const a = new THREE.Mesh(new THREE.SphereGeometry(.06, 8, 6), M(0xe63946)); const ang = i * 1.6 + Math.random(); a.position.set(Math.cos(ang) * .5, 1.0 + Math.random() * .4, Math.sin(ang) * .5); g.add(a); }
     world.add(g); return g;
   }
-  function bush(x, z) { const g = new THREE.Group(); g.position.set(x, 0, z); box(0.6, 0.4, 0.5, 0x3f8f35, 0, 0.2, 0, g); box(0.35, 0.3, 0.35, 0x56a845, 0.15, 0.45, 0, g); world.add(g); }
+  function bush(x, z) {
+    const g = new THREE.Group(); g.position.set(x, 0, z);
+    for (const [r, dx, dy, c] of [[.3, -.15, .22, 0x3f8f35], [.34, .12, .25, 0x4a9c3c], [.22, 0, .45, 0x56a845]]) { const b = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), M(c)); b.position.set(dx, dy, 0); b.castShadow = true; g.add(b); }
+    for (let i = 0; i < 3; i++) { const f = new THREE.Mesh(new THREE.SphereGeometry(.045, 6, 5), M([0xffffff, 0xff9ecf, 0xffe45c][i])); f.position.set(-.2 + i * .2, .35 + (i % 2) * .15, .28); g.add(f); }
+    world.add(g);
+  }
   function house(x, z, roof) {
     const g = new THREE.Group(); g.position.set(x, 0, z);
     box(2, 1.3, 1.6, 0xf3ead6, 0, 0.65, 0, g);
     const r = new THREE.Mesh(new THREE.ConeGeometry(1.6, 0.9, 4), M(roof)); r.rotation.y = Math.PI / 4; r.position.y = 1.75; r.scale.set(1, 1, 0.8); r.castShadow = true; g.add(r);
-    box(0.35, 0.6, 0.05, 0x7a4f24, 0.4, 0.3, 0.81, g); box(0.35, 0.35, 0.05, 0x9fd7f0, -0.45, 0.8, 0.81, g);
+    box(0.35, 0.6, 0.05, 0x7a4f24, 0.4, 0.3, 0.81, g); box(.04, .04, .03, 0xe6c36a, 0.52, 0.3, 0.84, g);
+    for (const wx of [-0.45, -0.45]) { box(0.42, 0.42, 0.05, 0xffffff, wx, 0.8, 0.81, g); box(0.35, 0.35, 0.06, 0x9fd7f0, wx, 0.8, 0.815, g); box(0.02, 0.35, 0.07, 0xffffff, wx, 0.8, 0.82, g); box(0.35, 0.02, 0.07, 0xffffff, wx, 0.8, 0.82, g); }
+    box(0.44, 0.1, 0.12, 0x7a4f24, -0.45, 0.55, 0.86, g);
+    for (let i = 0; i < 4; i++) { const f = new THREE.Mesh(new THREE.SphereGeometry(.05, 6, 5), M([0xe63946, 0xffe45c, 0xff9ecf, 0xffffff][i])); f.position.set(-0.6 + i * .1, 0.64, 0.88); g.add(f); }
+    box(0.25, 0.5, 0.25, 0x9b4a3a, 0.5, 1.9, -0.2, g);                                     // chimney
     world.add(g);
   }
   for (let i = 0; i < 7; i++) { tree(rand(-6, 16), rand(-7, -1.2), rand(.9, 1.4)); }
@@ -459,36 +471,76 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     g.scale.setScalar(s); return outline(g);
   }
+  function wheelSet(g, xs, zs, r, w, hub = 0xd9d9d9) {
+    for (const x of xs) for (const z of zs) {
+      const t = cyl(r, r, w, 0x18191c, 12, g); t.rotation.x = Math.PI / 2; t.position.set(x, r, z);
+      const h = cyl(r * .5, r * .5, w + .02, hub, 8, g); h.rotation.x = Math.PI / 2; h.position.set(x, r, z);
+    }
+  }
   function makeCar(color) {
     const g = new THREE.Group(), dark = new THREE.Color(color).multiplyScalar(.72).getHex();
     box(.86, .28, .56, color, 0, .27, 0, g);
     box(.46, .24, .5, dark, -.06, .5, 0, g);
     box(.06, .2, .46, 0x2a3a4c, .18, .5, 0, g); box(.06, .18, .44, 0x2a3a4c, -.3, .5, 0, g);
+    for (const z of [-.26, .26]) box(.3, .16, .02, 0x2a3a4c, -.06, .5, z, g);            // side windows
+    for (const z of [-.285, .285]) box(.02, .14, .01, dark, .06, .28, z, g);              // door seam
+    box(.06, .08, .58, 0x9aa0a8, .45, .18, 0, g); box(.06, .08, .58, 0x9aa0a8, -.45, .18, 0, g);   // bumpers
+    box(.02, .06, .14, 0xffffff, .48, .2, 0, g); box(.02, .06, .14, 0xffffff, -.48, .2, 0, g);     // number plates
+    for (const z of [-.31, .31]) box(.06, .05, .05, dark, .2, .42, z, g);                 // mirrors
     box(.02, .08, .1, 0xfff6b0, .44, .3, -.18, g, { emissive: 0x665d20 }); box(.02, .08, .1, 0xfff6b0, .44, .3, .18, g, { emissive: 0x665d20 });
-    box(.02, .06, .1, 0xff3b3b, -.44, .3, -.18, g); box(.02, .06, .1, 0xff3b3b, -.44, .3, .18, g);
-    for (const x of [-.26, .26]) for (const z of [-.28, .28]) { const w = cyl(.12, .12, .1, 0x18191c, 10, g); w.rotation.x = Math.PI / 2; w.position.set(x, .12, z); }
+    box(.02, .06, .1, 0xff3b3b, -.44, .3, -.18, g, { emissive: 0x551010 }); box(.02, .06, .1, 0xff3b3b, -.44, .3, .18, g, { emissive: 0x551010 });
+    wheelSet(g, [-.26, .26], [-.28, .28], .12, .1);
     return g;
   }
   function makeTruck() {
     const g = new THREE.Group();
     box(1.36, .7, .7, 0xf7f5ee, -.25, .55, 0, g);
     box(1.36, .12, .72, 0x2a9d8f, -.25, .45, 0, g);
+    box(.02, .6, .02, 0xbdb8aa, -.93, .55, -.1, g); box(.02, .6, .02, 0xbdb8aa, -.93, .55, .1, g);   // rear doors
     box(.5, .6, .66, 0xe85d3a, .68, .45, 0, g);
     box(.06, .24, .56, 0x2a3a4c, .94, .58, 0, g);
+    box(.03, .16, .4, 0x444444, .95, .28, 0, g);                                          // grille
+    for (const z of [-.37, .37]) box(.04, .12, .06, 0x333333, .86, .62, z, g);            // mirrors
+    box(.08, .06, .7, 0x9aa0a8, .95, .14, 0, g);
     box(.02, .08, .12, 0xfff6b0, .94, .3, -.22, g, { emissive: 0x665d20 }); box(.02, .08, .12, 0xfff6b0, .94, .3, .22, g, { emissive: 0x665d20 });
-    for (const x of [-.75, -.5, .2, .72]) for (const z of [-.33, .33]) { const w = cyl(.14, .14, .1, 0x18191c, 10, g); w.rotation.x = Math.PI / 2; w.position.set(x, .14, z); }
+    wheelSet(g, [-.75, -.5, .2, .72], [-.33, .33], .14, .1);
     return g;
+  }
+  function makeFarmer(g, x) {
+    box(.18, .22, .22, 0x2f6fbf, x, .78, 0, g);                                           // overalls
+    box(.15, .15, .15, 0xf2c9a0, x, .97, 0, g);
+    const brim = cyl(.16, .16, .02, 0xe6c36a, 12, g); brim.position.set(x, 1.05, 0);
+    const top = cyl(.08, .09, .08, 0xe6c36a, 10, g); top.position.set(x, 1.1, 0);
   }
   function makeTractor() {
     const g = new THREE.Group();
     box(.52, .28, .36, 0x3fb83a, .14, .36, 0, g);
     box(.06, .3, .06, 0x333333, .28, .62, -.08, g);
-    box(.34, .44, .44, 0xf2c230, -.2, .62, 0, g);
-    box(.28, .26, .46, 0x9fd7f0, -.2, .66, 0, g, { transparent: true, opacity: .6 });
-    box(.38, .06, .5, 0xd4a500, -.2, .86, 0, g);
-    for (const z of [-.3, .3]) { const w = cyl(.26, .26, .14, 0x18191c, 12, g); w.rotation.x = Math.PI / 2; w.position.set(-.2, .26, z); const h = cyl(.1, .1, .15, 0xc0392b, 8, g); h.rotation.x = Math.PI / 2; h.position.set(-.2, .26, z); }
-    for (const z of [-.25, .25]) { const w = cyl(.14, .14, .1, 0x18191c, 10, g); w.rotation.x = Math.PI / 2; w.position.set(.3, .14, z); }
+    box(.1, .14, .3, 0x2c2c2c, .42, .28, 0, g);                                            // front weight
+    box(.34, .2, .44, 0xf2c230, -.2, .5, 0, g);
+    for (const z of [-.3, .3]) box(.4, .05, .18, 0x2e8b2a, -.2, .56, z, g);                // mudguards
+    box(.04, .12, .04, 0x333333, .02, .66, 0, g); const sw = cyl(.07, .07, .02, 0x222222, 10, g); sw.position.set(.02, .72, 0); sw.rotation.z = .6;
+    makeFarmer(g, -.2);
+    wheelSet(g, [-.2], [-.3, .3], .26, .14, 0xc0392b);
+    wheelSet(g, [.3], [-.25, .25], .14, .1, 0xc0392b);
     const smoke = box(.12, .12, .12, 0xcfcfcf, .28, .85, -.08, g, { transparent: true, opacity: .6 }); smoke.castShadow = false; g.userData.smoke = smoke;
+    return g;
+  }
+  const MOTO_COLORS = [0xe63946, 0x1d3557, 0xf77f00, 0x2a9d8f];
+  function makeMoto() {
+    // built facing +x
+    const g = new THREE.Group(), col = MOTO_COLORS[Math.floor(Math.random() * MOTO_COLORS.length)];
+    for (const x of [-.3, .3]) { const w = new THREE.Mesh(new THREE.TorusGeometry(.13, .05, 8, 16), M(0x18191c)); w.position.set(x, .18, 0); w.castShadow = true; g.add(w); const h = cyl(.06, .06, .06, 0xd9d9d9, 8, g); h.rotation.x = Math.PI / 2; h.position.set(x, .18, 0); }
+    box(.42, .16, .16, col, 0, .34, 0, g);                         // body / tank
+    box(.24, .06, .18, 0x222222, -.12, .45, 0, g);                 // seat
+    box(.1, .12, .1, 0x9aa0a8, -.02, .22, 0, g);                   // engine
+    box(.04, .2, .04, 0x9aa0a8, .26, .38, 0, g); box(.04, .04, .3, 0x333333, .24, .5, 0, g);   // fork + handlebar
+    box(.03, .07, .1, 0xfff6b0, .31, .4, 0, g, { emissive: 0x665d20 });
+    box(.18, .26, .2, 0x2b2d42, .0, .62, 0, g);                    // rider jacket
+    for (const z of [-.11, .11]) { const a = box(.2, .06, .06, 0x2b2d42, .12, .64, z, g); a.rotation.z = -.4; }
+    for (const z of [-.08, .08]) box(.18, .07, .08, 0x1d3557, .04, .45, z, g);
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(.12, 12, 10), M(col)); helmet.position.set(.03, .84, 0); helmet.castShadow = true; g.add(helmet);
+    box(.04, .07, .16, 0x2a3a4c, .14, .84, 0, g);                  // visor
     return g;
   }
   function makeTrain(len) {
@@ -576,9 +628,10 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   const laneGroup = new THREE.Group(); scene.add(laneGroup);
   // mixed road traffic: cars fastest, bikes medium, trucks slow, tractors a bit slower than trucks
   const VEH = {
-    car:     { len: 1, speed: 1.5,  weight: .55 },
-    truck:   { len: 2, speed: 1.5,  weight: .25 },
-    tractor: { len: 1, speed: 1.5,  weight: .2 },
+    car:     { len: 1, speed: 1.5,  weight: .48 },
+    truck:   { len: 2, speed: 1.5,  weight: .22 },
+    tractor: { len: 1, speed: 1.5,  weight: .17 },
+    moto:    { len: 1, speed: 1.5,  weight: .13 },
     bike:    { len: 1, speed: 1.15, weight: 0 },      // only in the bike lane
     ped:     { len: 1, speed: .5,   weight: 0 },
   };
@@ -591,7 +644,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function setVehicle(l, it, kind) {
     if (it.mesh) laneGroup.remove(it.mesh);
     const m = outline(kind === "car" ? makeCar(CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)])
-      : kind === "truck" ? makeTruck() : kind === "tractor" ? makeTractor() : kind === "ped" ? makePed() : makeBike());
+      : kind === "truck" ? makeTruck() : kind === "tractor" ? makeTractor() : kind === "moto" ? makeMoto() : kind === "ped" ? makePed() : makeBike());
     if (kind === "bike" && l.only) m.scale.setScalar(.85);
     if (l.dir < 0) m.rotation.y = Math.PI;
     it.mesh = m; it.kind = kind; it.len = VEH[kind].len;
@@ -879,7 +932,14 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   }
 
   // ---- deaths: each kind has its own animation; a bike crash throws the animal under the next vehicle ----
-  const DIE_TIME = { car: 1.6, truck: 1.5, water: 3.6, time: 1.1, reeds: 1.1 };
+  const DIE_TIME = { car: 1.6, truck: 1.5, water: 3.6, time: 1.1, reeds: 1.1, tractor: 2.8, moto: 3.2 };
+  let dieCarry = null;
+  // dizzy stars for the tractor landing
+  const dizzy = new THREE.Group(); dizzy.visible = false; scene.add(dizzy);
+  for (let i = 0; i < 3; i++) {
+    const st = new THREE.Mesh(new THREE.OctahedronGeometry(.08), new THREE.MeshBasicMaterial({ color: 0xffd23f }));
+    dizzy.add(st);
+  }
   let dieT = 0, dieFrom = new THREE.Vector3(), toss = null, crashedBike = null;
   const splats = [];
   const furOf = () => ANIMALS.find(a => a.id === animalId).fur;
@@ -899,6 +959,17 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function clearSplats() { while (splats.length) scene.remove(splats.pop()); }
   function vehicleKind(lane) { return lane.kind === "train" ? "train" : lane.kind === "truck" ? "truck" : lane.kind === "bike" ? "bike" : "car"; }
   let dieTrain = null;
+  // the vehicle decides how the animal is knocked out
+  function hitByVehicle(lane, it) {
+    if (it.kind === "tractor" || it.kind === "moto") {
+      dieKind = it.kind; dieT = 0; dieCarry = { lane, it }; shake = .3;
+      dieFrom.set(duck.x + .5, .3, cz(duck.row));
+      burst(duck.x + .5, cz(duck.row), .4, "feather", furOf());
+      if (navigator.vibrate) try { navigator.vibrate(90); } catch (e) {}
+      return;
+    }
+    startHit(it.kind === "truck" ? "truck" : "car");
+  }
   function startHit(kind) {
     dieKind = kind; dieT = 0;
     dieFrom.set(duck.x + .5, .3, cz(duck.row));
@@ -917,14 +988,15 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
       return;
     }
-    const vk = lane.kind === "train" ? "train" : item.kind === "truck" ? "truck" : item.kind === "bike" ? "bike" : item.kind === "ped" ? "ped" : "car";
+    const vk = lane.kind === "train" ? "train" : item.kind === "bike" ? "bike" : item.kind === "ped" ? "ped" : "vehicle";
+    if (vk === "vehicle") { hitByVehicle(lane, item); return; }
     if (vk === "train") {
       dieKind = "train"; dieTrain = { lane, it: item }; shake = .5;
       burst(duck.x + .5, cz(duck.row), .5, "feather", furOf());
       if (navigator.vibrate) try { navigator.vibrate([100, 50, 100]); } catch (e) {}
       return;
     }
-    if (vk !== "bike" && vk !== "ped") { startHit(vk); return; }
+
     // cyclist: the bike falls over and throws the animal into a neighbouring car/truck lane
     // pedestrian: pushes the animal away, then kicks it like a football into the road
     item.crashed = true; crashedBike = item; dieKind = "bike"; shake = .2;
@@ -946,6 +1018,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     if (navigator.vibrate) try { navigator.vibrate(60); } catch (e) {}
   }
   function afterDeath() {
+    dizzy.visible = false; dieCarry = null;
     hippo.visible = false; popGroup.visible = false;
     clearSplats();                                          // the road is clean again for the next try
     for (const n of ["fl", "fr"]) { const f = player.getObjectByName(n); if (f) { f.rotation.x = 0; f.position.y = .03; } }
@@ -995,6 +1068,11 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     if (state === "dying") {
       dieT += dt;
+      if (dieKind === "moto") {
+        const { lane: ml, it: mi } = dieCarry;
+        if (dieT > DIE_TIME.moto || mi.x < -2.5 || mi.x > COLS + 1.5 || mi.kind !== "moto") { dieCarry = null; afterDeath(); }
+        return;
+      }
       if (dieKind === "train") {
         const { lane: tl, it: ti } = dieTrain;
         duck.x = tl.v > 0 ? ti.x + tl.len - .3 : ti.x - .7; duck.fromX = duck.x;
@@ -1007,7 +1085,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         const tg = toss.target;
         if (tg && toss.t >= toss.delay + .55) {
           const a = tg.v.x + .1, b = tg.v.x + tg.v.len - .1, cx = duck.x + .5;
-          if (cx + .3 > a && cx - .3 < b) { startHit(tg.v.kind === "truck" ? "truck" : "car"); return; }
+          if (cx + .3 > a && cx - .3 < b) { hitByVehicle(tg.lane, tg.v); return; }
         }
         if (toss.t > toss.delay + 3) startHit("car");
         return;
@@ -1129,6 +1207,33 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           player.rotation.set(k * 14, faceAngle + k * 9, k * 6);
           player.scale.setScalar(1 + e * 1.6);
           if (k > .93) player.visible = false;
+        } else if (dieKind === "tractor" && dieCarry) {
+          // caught on the big rear wheel, spun round twice, flung behind and left dizzy
+          const { lane: tl, it: ti } = dieCarry, dir = tl.dir;
+          const wx = ti.x + ti.len / 2 - dir * .2, wz = cz(tl.row) + .42, t = dieT;
+          if (t < 1.0) {
+            const a = -dir * t * Math.PI * 4;
+            ox = wx + Math.cos(a) * .36; oz = wz; py = .26 + Math.sin(a) * .36;
+            player.rotation.set(0, faceAngle, a);
+          } else {
+            if (!dieCarry.fling) dieCarry.fling = { x: wx - dir * .3, z: wz, tx: Math.max(.3, Math.min(COLS - .3, wx - dir * 2.2)) };
+            const f = dieCarry.fling, q = Math.min(1, (t - 1.0) / .8);
+            ox = f.x + (f.tx - f.x) * q; oz = f.z - .4 * q; py = .3 + Math.sin(q * Math.PI) * 1.6;
+            if (q < 1) player.rotation.set(q * 9, faceAngle, q * 6);
+            else {
+              py = .12; player.rotation.set(0, faceAngle + Math.sin(clock * 5) * .4, Math.PI / 2);
+              dizzy.visible = true;
+              dizzy.children.forEach((st, i) => { const a = clock * 4 + i * 2.1; st.position.set(ox + Math.cos(a) * .3, .55 + Math.sin(clock * 6 + i) * .04, oz + Math.sin(a) * .3); st.rotation.y = clock * 5; });
+            }
+          }
+        } else if (dieKind === "moto" && dieCarry) {
+          // lands on the pillion seat and gets a ride off the screen
+          const { lane: ml, it: mi } = dieCarry, q = Math.min(1, dieT / .35);
+          const seatX = mi.x + .5 - ml.dir * .3, seatZ = cz(ml.row);
+          ox = dieFrom.x + (seatX - dieFrom.x) * q; oz = dieFrom.z + (seatZ - dieFrom.z) * q;
+          py = .55 + Math.sin(q * Math.PI) * .8;
+          player.rotation.set(0, ml.dir > 0 ? -Math.PI / 2 : Math.PI / 2, Math.sin(clock * 14) * .15);
+          player.scale.setScalar(.62);
         } else if (dieKind === "train") {
           const tl = dieTrain ? dieTrain.lane : null;
           py = .55; player.rotation.set(0, tl && tl.v > 0 ? -Math.PI / 2 : Math.PI / 2, Math.sin(clock * 20) * .1);
