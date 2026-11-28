@@ -1893,7 +1893,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           // spreads a checked blanket, lies down on its back and puts on sunglasses
           blanket.visible = true; blanket.position.set(x0, .01, z0 - .2); blanket.scale.set(1, 1, Math.max(.05, pop));
           const lie = sit;
-          py = .06; oz = z0 - .95 * lie; ox = x0;
+          py = .06 + .13 * lie; oz = z0 - .95 * lie; ox = x0;       // lifted so the back of the head and the ears rest on the blanket, not under it
           player.rotation.set(Math.PI / 2 * lie, 0, 0); player.scale.set(1, 1, 1);
           restPose = { sun: lie, wiggle: Math.sin(clock * 2) };
           if (open > .5 && !shades) {
