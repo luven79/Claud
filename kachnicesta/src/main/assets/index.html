@@ -2106,14 +2106,15 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       const wantX = showcase ? px : closeUp ? hippoAt.x + .05 : COLS / 2 + 0.7;
       camTarget.z += (wantZ - camTarget.z) * Math.min(1, dt * 4);
       camTarget.x += (wantX - camTarget.x) * Math.min(1, dt * 4);
-      camTarget.y += ((closeUp ? .45 : showcase ? .45 : 0) - camTarget.y) * Math.min(1, dt * 4);
+      camTarget.y += ((closeUp && dieKind !== "moto" ? .45 : showcase ? .45 : 0) - camTarget.y) * Math.min(1, dt * 4);
     }
     const hf = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
     const fullDist = Math.max(9, (COLS / 2 + 0.6) / Math.tan(hf / 2), 5.6 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
     const readingCam = state === "play" && duck && duck.rest > .3;
-    camDist += ((showcase ? 4.4 : closeUp ? 5 : fullDist) - camDist) * Math.min(1, dt * (closeUp ? 6 : 4) || 1);
+    const motoCam = closeUp && dieKind === "moto";
+    camDist += ((showcase ? 4.4 : motoCam ? fullDist * .8 : closeUp ? 5 : fullDist) - camDist) * Math.min(1, dt * (closeUp ? 6 : 4) || 1);
     const dist = camDist;
-    const wantOff = showcase ? new THREE.Vector3(0, .42, 1) : closeUp ? new THREE.Vector3(1, .42, .75) : new THREE.Vector3(.14, .9, .4);
+    const wantOff = showcase ? new THREE.Vector3(0, .42, 1) : motoCam ? new THREE.Vector3(.14, .9, .4) : closeUp ? new THREE.Vector3(1, .42, .75) : new THREE.Vector3(.14, .9, .4);
     camOff.lerp(wantOff.normalize(), Math.min(1, dt * 3 || 1)).normalize();
     const off = camOff.clone().multiplyScalar(dist);
     camera.position.copy(camTarget).add(off);
