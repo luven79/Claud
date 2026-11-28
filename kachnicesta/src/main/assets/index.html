@@ -1569,7 +1569,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     for (const l of lanes) for (const it of l.items) {
       const m = it.mesh, x = it.x + (it.len || l.len) / 2, z = cz(l.row) + (l.zOff || 0);
       // keep traffic in front of the camera out of the hippo close-up
-      m.visible = !(closeUp && l.type !== "river" && l.row > hippoAt.z && l.row <= hippoAt.z + 4);
+      m.visible = !(closeUp && l.type !== "river" && l.row >= hippoAt.z - .5 && l.row <= hippoAt.z + 4);
       // rafts, logs and lily pads drifting through the hippo would spoil the shot
       if (closeUp && l.type === "river" && Math.abs(cz(l.row) - hippoAt.z - .5) < 1.8 && it.x < hippoAt.x + 1.6 && it.x + l.len > hippoAt.x - 1.6) m.visible = false;
       if (l.type === "rail") { m.position.set(x, 0, z); continue; }
