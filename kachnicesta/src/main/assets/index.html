@@ -1950,7 +1950,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         if (duck.restMode === "stork") {
           // the animal stands still and looks up while a stork flies in and lands on its head
           stool.visible = paper.visible = blanket.visible = rod.visible = bobber.visible = fishLine.visible = false;
-          py = 0; player.rotation.set(0, Math.PI, 0); player.scale.set(1, 1, 1);
+          py = 0; player.rotation.set(0, 0, 0); player.scale.set(1, 1, 1);      // keeps facing the road
           player.updateMatrixWorld(true);
           const hd = player.getObjectByName("head");
           const top = hd ? hd.localToWorld(new THREE.Vector3(0, .17, 0)) : new THREE.Vector3(x0, .9, z0);
@@ -1959,7 +1959,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           stork.visible = true;
           stork.position.copy(from.lerp(top, e)); if (fly < 1) stork.position.y += Math.sin(fly * Math.PI) * .6;
           const settle = fly < 1 ? 0 : Math.min(1, (r - 1.8) / .4);              // sits down and folds its wings
-          stork.position.y -= settle * .3 * 1.6;
+
           stork.rotation.set(0, fly < 1 ? -Math.PI / 2 - .5 : Math.PI + Math.sin(clock * .7) * .4, 0);
           const flap = fly < 1 ? Math.sin(clock * 14) * .9 : (fly === 1 && r < 2.1 ? Math.sin(clock * 20) * .5 * (2.1 - r) / .3 : 0);
           for (const [w, sx] of [[storkParts.wl, -1], [storkParts.wr, 1]]) {
@@ -1968,7 +1968,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
             w.position.x = sx * (.09 - .04 * settle);
           }
           // legs fold under the body when it sits
-          storkParts.ll.rotation.x = fly < 1 ? .9 : 1.5 * settle; storkParts.lr.rotation.x = fly < 1 ? .9 : 1.5 * settle;
+          storkParts.ll.rotation.x = storkParts.lr.rotation.x = fly < 1 ? .9 : 0;     // stays standing
           const clack = fly === 1 && ((r - 1.8) % 4) < .6;
           storkParts.jaw.rotation.x = -Math.PI / 2 + (clack ? Math.abs(Math.sin(clock * 30)) * .35 : 0);
           storkParts.head.rotation.x = clack ? -.6 : Math.sin(clock * 1.2) * .1;
