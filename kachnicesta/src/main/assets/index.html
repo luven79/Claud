@@ -161,6 +161,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   const renderer = new THREE.WebGLRenderer({ antialias: true });
   renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
   renderer.shadowMap.enabled = true;
+  renderer.localClippingEnabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   stage.prepend(renderer.domElement);
 
@@ -1319,8 +1320,55 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function vehicleKind(lane) { return lane.kind === "train" ? "train" : lane.kind === "truck" ? "truck" : lane.kind === "bike" ? "bike" : "car"; }
   let dieTrain = null;
   // the vehicle decides how the animal is knocked out
+  // motorbike: the animal is cut in half; the halves slide apart and blood pools between them
+  let slice = null;
+  function sliceAnimal() {
+    const cx = duck.x + .5, z = cz(duck.row), rotY = player.rotation.y;
+    const halves = [-1, 1].map(side => {
+      const g = makeAnimal(animalId, 1);
+      if (g.userData.animate) g.userData.animate(clock, 0, "hurt");
+      const plane = new THREE.Plane(new THREE.Vector3(side, 0, 0), 0);
+      g.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.clippingPlanes = [plane]; o.material.side = THREE.DoubleSide; if (o.userData.isOutline) o.material.side = THREE.BackSide; } });
+      g.position.set(cx, 0, z); g.rotation.y = rotY; scene.add(g);
+      const cap = new THREE.Mesh(new THREE.CircleGeometry(1, 20), new THREE.MeshBasicMaterial({ color: 0xb3001b, side: THREE.DoubleSide }));
+      cap.rotation.y = Math.PI / 2; cap.scale.set(.3, .3, 1); cap.position.set(cx, .45, z); scene.add(cap);
+      return { g, plane, cap, side };
+    });
+    const pool = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshLambertMaterial({ color: 0xa8001a }));
+    pool.rotation.x = -Math.PI / 2; pool.position.set(cx, .004, z); pool.scale.setScalar(.01); scene.add(pool); splats.push(pool);
+    slice = { halves, pool, cx, z };
+    hippoAt.set(cx, 0, z);                       // the close-up camera frames the cut
+    player.visible = false;
+    SFX.whoosh(); setTimeout(() => SFX.splat(), 120);
+  }
+  function updateSlice(t) {
+    if (!slice) return;
+    const open = Math.min(1, Math.max(0, (t - .12) / .5)), ease = open * open * (3 - 2 * open);
+    for (const h of slice.halves) {
+      const x = slice.cx + h.side * ease * .55;
+      h.g.position.x = x; h.g.position.y = -ease * .05;
+      h.g.scale.set(1, 1 - ease * .12, 1);
+      h.plane.constant = h.side < 0 ? x : -x;                              // keep this half on its own side of the cut
+      h.cap.position.set(x, .45 - ease * .08, slice.z); h.cap.visible = t > .05;
+    }
+    const grow = Math.min(1, Math.max(0, (t - .3) / 1.2));
+    slice.pool.scale.set(.15 + grow * .55, .12 + grow * .42, 1);
+    if (t > .2 && t < 1.2 && Math.random() < .25) burst(slice.cx + rand(-.1, .1), slice.z, .4, "feather", 0xc8102e);
+  }
+  function clearSlice() {
+    if (!slice) return;
+    for (const h of slice.halves) { scene.remove(h.g); scene.remove(h.cap); }
+    slice = null;
+  }
   function hitByVehicle(lane, it) {
     SFX.crash();
+    if (it.kind === "moto") {
+      dieKind = "moto"; dieT = 0; shake = .3; dieCarry = null;
+      burst(duck.x + .5, cz(duck.row), .4, "feather", 0xc8102e);
+      sliceAnimal();
+      if (navigator.vibrate) try { navigator.vibrate([40, 30, 120]); } catch (e) {}
+      return;
+    }
     if (it.kind === "tractor" || it.kind === "moto") {
       dieKind = it.kind; dieT = 0; dieCarry = { lane, it }; shake = .3;
       dieFrom.set(duck.x + .5, .3, cz(duck.row));
@@ -1398,6 +1446,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     });
   }
   function afterDeath() {
+    clearSlice();
     clearCharges(); clearSkids();
     if (player) { showOnlyHead(player, false); player.traverse(o => { if (o.isMesh && o.userData.wasHidden) { o.visible = true; delete o.userData.wasHidden; } }); }
     dizzy.visible = false; dieCarry = null;
@@ -1450,11 +1499,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     if (state === "dying") {
       dieT += dt;
-      if (dieKind === "moto") {
-        const { lane: ml, it: mi } = dieCarry;
-        if (dieT > DIE_TIME.moto || mi.x < -2.5 || mi.x > COLS + 1.5 || mi.kind !== "moto") { dieCarry = null; afterDeath(); }
-        return;
-      }
+      if (dieKind === "moto") { updateSlice(dieT); if (dieT > DIE_TIME.moto) afterDeath(); return; }
       if (dieKind === "train") {
         const { lane: tl, it: ti } = dieTrain;
         duck.x = tl.v > 0 ? ti.x + tl.len - .3 : ti.x - .7; duck.fromX = duck.x;
@@ -1636,14 +1681,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
               dizzy.children.forEach((st, i) => { const a = clock * 4 + i * 2.1; st.position.set(ox + Math.cos(a) * .3, .55 + Math.sin(clock * 6 + i) * .04, oz + Math.sin(a) * .3); st.rotation.y = clock * 5; });
             }
           }
-        } else if (dieKind === "moto" && dieCarry) {
-          // lands on the pillion seat and gets a ride off the screen
-          const { lane: ml, it: mi } = dieCarry, q = Math.min(1, dieT / .35);
-          const seatX = mi.x + .5 - ml.dir * .3, seatZ = cz(ml.row);
-          ox = dieFrom.x + (seatX - dieFrom.x) * q; oz = dieFrom.z + (seatZ - dieFrom.z) * q;
-          py = .55 + Math.sin(q * Math.PI) * .8;
-          player.rotation.set(0, ml.dir > 0 ? -Math.PI / 2 : Math.PI / 2, Math.sin(clock * 14) * .15);
-          player.scale.setScalar(.62);
+        } else if (dieKind === "moto") {
+          player.visible = false;
         } else if (dieKind === "train") {
           const tl = dieTrain ? dieTrain.lane : null;
           py = .55; player.rotation.set(0, tl && tl.v > 0 ? -Math.PI / 2 : Math.PI / 2, Math.sin(clock * 20) * .1);
@@ -1725,7 +1764,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
       // camera follows the duck in depth
       showcase = state === "menu" || state === "over";
-      closeUp = state === "dying" && dieKind === "water" && dieT > .35 && dieT < 3.3;
+      closeUp = state === "dying" && ((dieKind === "water" && dieT > .35 && dieT < 3.3) || (dieKind === "moto" && dieT > .25 && dieT < 3.1));
       const wantZ = showcase ? cz(pr) - 0.1 : closeUp ? hippoAt.z + .45 : Math.min(ROWS - 5.4, Math.max(4.4, cz(pr) - 3.2));
       const wantX = showcase ? px : closeUp ? hippoAt.x + .05 : COLS / 2 + 0.7;
       camTarget.z += (wantZ - camTarget.z) * Math.min(1, dt * 4);
