@@ -1968,8 +1968,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       showcase = state === "menu" || state === "over";
       closeUp = state === "dying" && ((dieKind === "water" && dieT > .35 && dieT < 4.9) || (dieKind === "moto" && dieT > .15 && (!motoRun || !motoRun.sliced || dieT - motoRun.t0 < 2.4)));
       const reading = state === "play" && duck.rest !== undefined && duck.rest > .3;
-      const wantZ = showcase ? cz(pr) - 0.1 : reading ? cz(pr) - 1.2 : closeUp ? hippoAt.z + .45 : Math.min(ROWS - 5.4, Math.max(4.4, cz(pr) - 3.2));
-      const wantX = showcase ? px : reading ? px : closeUp ? hippoAt.x + .05 : COLS / 2 + 0.7;
+      const wantZ = showcase ? cz(pr) - 0.1 : closeUp ? hippoAt.z + .45 : Math.min(ROWS - 5.4, Math.max(4.4, cz(pr) - 3.2));
+      const wantX = showcase ? px : closeUp ? hippoAt.x + .05 : COLS / 2 + 0.7;
       camTarget.z += (wantZ - camTarget.z) * Math.min(1, dt * 4);
       camTarget.x += (wantX - camTarget.x) * Math.min(1, dt * 4);
       camTarget.y += ((closeUp ? .45 : showcase ? .45 : 0) - camTarget.y) * Math.min(1, dt * 4);
@@ -1977,7 +1977,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     const hf = 2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)) * camera.aspect);
     const fullDist = Math.max(9, (COLS / 2 + 0.6) / Math.tan(hf / 2), 5.6 / Math.tan(THREE.MathUtils.degToRad(camera.fov / 2)));
     const readingCam = state === "play" && duck && duck.rest > .3;
-    camDist += ((showcase ? 4.4 : closeUp ? 5 : readingCam ? 6 : fullDist) - camDist) * Math.min(1, dt * (closeUp ? 6 : 4) || 1);
+    camDist += ((showcase ? 4.4 : closeUp ? 5 : fullDist) - camDist) * Math.min(1, dt * (closeUp ? 6 : 4) || 1);
     const dist = camDist;
     const wantOff = showcase ? new THREE.Vector3(0, .42, 1) : closeUp ? new THREE.Vector3(1, .42, .75) : new THREE.Vector3(.14, .9, .4);
     camOff.lerp(wantOff.normalize(), Math.min(1, dt * 3 || 1)).normalize();
