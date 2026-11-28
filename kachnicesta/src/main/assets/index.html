@@ -1184,11 +1184,31 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     return g;
   }
   let shades = null;
+  const ROD_L = 1.4;
+  const rod = new THREE.Group(); rod.visible = false; scene.add(rod);
+  {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(.008, .022, ROD_L, 8), M(0x2b2118)); pole.position.y = ROD_L / 2; rod.add(pole);
+    const grip = new THREE.Mesh(new THREE.CylinderGeometry(.03, .03, .3, 8), M(0x7a4f24)); grip.position.y = .15; rod.add(grip);
+    const reel = new THREE.Mesh(new THREE.CylinderGeometry(.05, .05, .04, 12), M(0xb0b6bf)); reel.rotation.z = Math.PI / 2; reel.position.set(.05, .28, 0); rod.add(reel);
+  }
+  const bobber = new THREE.Group(); bobber.visible = false; scene.add(bobber);
+  { const top = new THREE.Mesh(new THREE.SphereGeometry(.07, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), M(0xe63946)); bobber.add(top);
+    const bot = new THREE.Mesh(new THREE.SphereGeometry(.07, 12, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), M(0xffffff)); bobber.add(bot);
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(.008, .008, .08, 6), M(0xffd23f)); stick.position.y = .1; bobber.add(stick); }
+  const LINE_N = 32;
+  const fishLine = new THREE.Line(new THREE.BufferGeometry().setFromPoints(Array.from({ length: LINE_N }, () => new THREE.Vector3())), new THREE.LineBasicMaterial({ color: 0x20262e }));
+  fishLine.visible = false; fishLine.frustumCulled = false; scene.add(fishLine);
+  function riverAhead(row) {
+    let best = -1;
+    for (const sg of SEGMENTS) if (sg.type === "river") for (let r = sg.r0; r < sg.r0 + sg.n; r++) if (r < row && r > best) best = r;
+    return best;
+  }
   function endRest() {
     if (!duck) return;
+    duck.restCast = undefined;
     if (player) for (const nm of ["armL", "armR"]) { const a = player.getObjectByName(nm); if (a) a.scale.set(1, 1, 1); }
     duck.idle = 0;
-    if (duck.rest !== undefined) { duck.rest = undefined; stool.visible = paper.visible = blanket.visible = false; }
+    if (duck.rest !== undefined) { duck.rest = undefined; stool.visible = paper.visible = blanket.visible = rod.visible = bobber.visible = fishLine.visible = false; }
     if (shades) { shades.parent && shades.parent.remove(shades); shades = null; }
   }
 
@@ -1658,7 +1678,8 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     if (duck.hop === 1 && !duck.stunned && !laneAt(duck.row) && duck.row !== 0) {
       duck.idle = (duck.idle || 0) + dt;
       if (duck.idle > REST_AFTER) {
-        if (duck.rest === undefined) { duck.rest = 0; duck.restMode = Math.random() < .5 ? "paper" : "sun"; rustle(); }
+        if (duck.rest === undefined) { duck.rest = 0; const modes = ["paper", "sun"]; if (riverAhead(duck.row) >= 0) modes.push("fish");
+          duck.restMode = modes[Math.floor(Math.random() * modes.length)]; duck.fishRow = riverAhead(duck.row); rustle(); }
         const before = duck.rest; duck.rest += dt;
         if (before < .8 && duck.rest >= .8) rustle();
         if (duck.rest > 1.2 && Math.floor((duck.rest - 1.2) / 4.5) !== Math.floor((before - 1.2) / 4.5)) rustle();   // page turn
@@ -1889,7 +1910,41 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       if (state === "play" && duck.rest !== undefined) {
         const r = duck.rest, x0 = duck.x + .5, z0 = cz(duck.row);
         const pop = Math.min(1, r / .35), sit = Math.min(1, Math.max(0, (r - .35) / .4)), open = Math.min(1, Math.max(0, (r - .8) / .35));
-        if (duck.restMode === "sun") {
+        if (duck.restMode === "fish") {
+          // sits on the stool facing the road and casts all the way into the river with the hippos
+          blanket.visible = paper.visible = false;
+          stool.visible = true; stool.position.set(x0, 0, z0 + .05); stool.scale.setScalar(.2 + .8 * pop); stool.rotation.y = .3 * (1 - pop);
+          py = sit * .2; player.rotation.set(0, 0, 0); player.scale.set(1, 1, 1);
+          const show = Math.min(1, Math.max(0, (r - .75) / .25));
+          rod.visible = show > 0; rod.scale.setScalar(Math.max(.05, show));
+          // rest tilt forward, wind back over the shoulder, then the cast
+          let pitch = -.9;
+          if (r < 1.0) pitch = -.9 * show; else if (r < 1.3) pitch = -.9 + (r - 1.0) / .3 * 1.4; else if (r < 1.5) pitch = .5 - (r - 1.3) / .2 * 1.5; else pitch = -1.0 + Math.sin(clock * 1.5) * .03;
+          rod.position.set(x0 + .12, .5 + sit * .08, z0 - .18); rod.rotation.set(pitch, 0, -.08);
+          rod.updateMatrixWorld(true);
+          const tip = rod.localToWorld(new THREE.Vector3(0, ROD_L, 0));
+          const fseg = SEGMENTS.find(sg => sg.type === "river" && duck.fishRow >= sg.r0 && duck.fishRow < sg.r0 + sg.n);
+          const target = new THREE.Vector3(x0 + .3, -.12, fseg ? fseg.r0 + fseg.n / 2 : cz(duck.fishRow));   // out in the middle, among the hippos
+          const fly = Math.min(1, Math.max(0, (r - 1.4) / 1.0));
+          let bob;
+          if (fly <= 0) bob = tip.clone();
+          else if (fly < 1) { bob = tip.clone().lerp(target, fly); bob.y += Math.sin(fly * Math.PI) * (1.2 + (tip.z - target.z) * .25); }
+          else {
+            const cyc = (r - 2.4) % 5, dip = cyc > 4.2 && cyc < 4.6;
+            bob = target.clone(); bob.y += Math.sin(clock * 3) * .02 - (dip ? .1 : 0);
+          }
+          bobber.visible = r > 1.3; bobber.position.copy(bob);
+          if (duck.restCast === undefined && fly > 0) { duck.restCast = 1; SFX.whoosh(); }
+          if (duck.restCast === 1 && fly >= 1) { duck.restCast = 2; noise(.3, .25, 900, 1, 0, 300); burst(target.x, target.z, -.05, "splash"); }
+          // the line: tight while flying, sagging once the bobber floats
+          fishLine.visible = r > 1.3;
+          const pos = fishLine.geometry.attributes.position, sag = fly < 1 ? .1 : .6;
+          for (let i = 0; i < LINE_N; i++) { const q = i / (LINE_N - 1), pt = tip.clone().lerp(bob, q); pt.y -= Math.sin(q * Math.PI) * sag * Math.min(1, tip.distanceTo(bob) / 3); if (q > .85 && fly >= 1) pt.y = Math.max(pt.y, -.12); pos.setXYZ(i, pt.x, pt.y, pt.z); }
+          pos.needsUpdate = true;
+          restPose = { sit, open: 0, grips: [rod.localToWorld(new THREE.Vector3(0, .1, 0)), rod.localToWorld(new THREE.Vector3(0, .35, 0))] };
+          dizzy.visible = false;
+        } else if (duck.restMode === "sun") {
+          rod.visible = bobber.visible = fishLine.visible = false;
           // spreads a checked blanket, lies down on its back and puts on sunglasses
           blanket.visible = true; blanket.position.set(x0, .01, z0 - .2); blanket.scale.set(1, 1, Math.max(.05, pop));
           const lie = sit;
@@ -1905,7 +1960,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           stool.visible = paper.visible = false;
           dizzy.visible = false;
         } else {
-        blanket.visible = false; if (shades) { shades.parent && shades.parent.remove(shades); shades = null; }
+        blanket.visible = rod.visible = bobber.visible = fishLine.visible = false; if (shades) { shades.parent && shades.parent.remove(shades); shades = null; }
         stool.visible = true; stool.position.set(x0, 0, z0 + .05); stool.scale.setScalar(.2 + .8 * pop); stool.rotation.y = .3 * (1 - pop);
         // sitting on the stool facing the road, holding a big newspaper we read over its shoulder
         py = sit * .2; player.rotation.set(0, 0, 0); player.scale.set(1, 1, 1);
@@ -1931,7 +1986,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       player.position.set(ox !== null ? ox : px, py, oz !== null ? oz : cz(pr));
       if (player.userData.animate) player.userData.animate(clock, lift, state === "dying" ? "hurt" : (h < 1 || (showcase && Math.sin(clock * 1.3) > .9)) ? "jump" : "idle");
       if (restPose) {                                         // seated pose overrides the idle animation
-        const { sit, open, sun, wiggle } = restPose;
+        const { sit, open, sun, wiggle, grips } = restPose;
         if (sun !== undefined) {
           const n = nm => player.getObjectByName(nm);
           if (n("legL")) {
@@ -1945,7 +2000,14 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           const n = nm => player.getObjectByName(nm);
           if (n("legL")) {
             for (const lg of [n("legL"), n("legR")]) { lg.rotation.x = 1.35 * sit; lg.children[1].rotation.x = -1.35 * sit; }
-            if (open > 0) {
+            if (restPose.grips) {
+              player.updateMatrixWorld(true);
+              [n("armL"), n("armR")].forEach((ar, i) => {
+                const local = ar.parent.worldToLocal(restPose.grips[i].clone()).sub(ar.position), len = local.length();
+                ar.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), local.normalize());
+                ar.scale.set(1, Math.max(.4, len / .26), 1); ar.children[1].rotation.x = 0;
+              });
+            } else if (open > 0) {
               paper.updateMatrixWorld(true); player.updateMatrixWorld(true);
               for (const [ar, page, gx] of [[n("armL"), pageL, -.24], [n("armR"), pageR, .24]]) {
                 const grip = page.localToWorld(new THREE.Vector3(gx, -.04, .01));
