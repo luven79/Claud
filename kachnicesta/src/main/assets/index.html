@@ -1551,7 +1551,9 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     const vk = lane.kind === "train" ? "train" : item.kind === "bike" ? "bike" : item.kind === "ped" ? "ped" : "vehicle";
     if (vk === "vehicle") { hitByVehicle(lane, item); return; }
     if (vk === "train") {
-      dieKind = "train"; dieTrain = { lane, it: item }; shake = .5; SFX.crash(); SFX.trainHorn();
+      dieKind = "train"; shake = .5;
+      { const hx = duck.x + .5, hz = cz(duck.row);
+        dieTrain = { lane, it: item, anchors: null }; } SFX.crash(); SFX.trainHorn();
       burst(duck.x + .5, cz(duck.row), .5, "feather", furOf());
       if (navigator.vibrate) try { navigator.vibrate([100, 50, 100]); } catch (e) {}
       return;
@@ -1590,7 +1592,23 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       if (on && !inHead) o.userData.wasHidden = true;
     });
   }
+  const rubber = {};
+  function rubberLimb(nm, lb) {
+    if (!rubber[nm]) {
+      const meshes = []; lb.traverse(o => { if (o.isMesh && !o.userData.isOutline) meshes.push(o); });
+      const furC = meshes[0] ? meshes[0].material.color.getHex() : 0xe8692a, pawC = meshes.length ? meshes[meshes.length - 1].material.color.getHex() : 0x2a1a14;
+      const g = new THREE.Group();
+      const tube = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, 1, 10), M(furC)); tube.geometry.translate(0, .5, 0);
+      const holder = new THREE.Group(); holder.add(tube); g.add(holder);
+      const paw = new THREE.Mesh(new THREE.SphereGeometry(.15, 12, 10), M(pawC)); g.add(paw);
+      g.userData = { tube: holder, paw }; outline(g, .02, .01); scene.add(g); rubber[nm] = g;
+    }
+    return rubber[nm];
+  }
   function afterDeath() {
+    for (const k in rubber) rubber[k].visible = false;
+    if (player) for (const nm of ["legL", "legR", "armL", "armR"]) { const lb = player.getObjectByName(nm); if (lb) lb.visible = true; }
+    if (player) for (const nm of ["legL", "legR", "armL", "armR"]) { const lb = player.getObjectByName(nm); if (lb) lb.scale.set(1, 1, 1); }
     clearFurrows();
     clearSlice();
     clearCharges(); clearSkids();
@@ -1625,7 +1643,9 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   function trainStep(l, it, dt) {
     const park = l.v > 0 ? -l.len - 4 : COLS + 4;
     if (it.wait > 0) { it.wait -= dt; it.x = park; return; }
-    it.x += l.v * dt;
+    // right after hitting the animal the train lurches on slowly while the limbs stretch, then speeds away
+    const slow = state === "dying" && dieKind === "train" && dieTrain && dieTrain.it === it && dieT < 1.1 ? (dieT < .8 ? .28 : .28 + (dieT - .8) / .3 * .72) : 1;
+    it.x += l.v * dt * slow;
     if ((l.v > 0 && it.x > COLS + 5) || (l.v < 0 && it.x + l.len < -5)) { it.wait = rand(3, 7) / (1 + .1 * (level - 1)); it.x = park; }
   }
   function trainWarning() {
@@ -1871,7 +1891,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         } else if (dieKind === "train") {
           const tl = dieTrain ? dieTrain.lane : null;
           py = .55; player.rotation.set(0, tl && tl.v > 0 ? -Math.PI / 2 : Math.PI / 2, Math.sin(clock * 20) * .1);
-          player.scale.set(1.15, 1.1, .45);
+          player.scale.set(1.12, 1.08, .7);
         } else if (dieKind === "truck") {
           const f = Math.min(1, dieT / .08);
           player.scale.set(1 + f * .7, Math.max(.05, 1 - f), 1 + f * .7); py = .01;
@@ -1939,6 +1959,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         if (jaw) jaw.position.y = .47 - lift * .06 - Math.max(0, Math.sin(clock * 2.3)) * .01;
       }
       let restPose = null;
+      let trainLimbs = state === "dying" && dieKind === "train" && dieTrain;
       if (duck.storkLeave && duck.rest === undefined) {
         const L = duck.storkLeave; L.t += dt;
         stork.position.set(L.from.x + L.t * 2.5, L.from.y + L.t * 2.2, L.from.z - L.t * 1.5);
@@ -2098,6 +2119,33 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           }
         }
         restPose = null;
+      }
+      if (trainLimbs) {
+        // hands and feet stay stuck where it was hit, stretching like rubber, then snap back and ride along
+        const t = dieT, HOLD = .75;
+        const f = t < HOLD ? 1 : Math.exp(-7 * (t - HOLD)) * Math.cos(16 * (t - HOLD));
+        player.updateMatrixWorld(true);
+        if (!dieTrain.anchors) {
+          const bx = player.position.x, bz = cz(dieTrain.lane.row);
+          dieTrain.anchors = { armL: new THREE.Vector3(bx, 1.45, bz - .25), armR: new THREE.Vector3(bx, 1.45, bz + .25),
+                               legL: new THREE.Vector3(bx, .25, bz - .55), legR: new THREE.Vector3(bx, .25, bz + .55) };
+        }
+        for (const nm of ["legL", "legR", "armL", "armR"]) {
+          const lb = player.getObjectByName(nm); if (!lb) continue;
+          const L0 = nm[0] === "l" ? .27 : .25;
+          const root = lb.getWorldPosition(new THREE.Vector3());
+          const natural = lb.localToWorld(new THREE.Vector3(0, -L0, 0));
+          const end = natural.clone().lerp(dieTrain.anchors[nm], Math.max(0, f));
+          const rb = rubberLimb(nm, lb);
+          const stretched = Math.abs(f) > .04;
+          lb.visible = !stretched; rb.visible = stretched;
+          if (stretched) {
+            const d = end.clone().sub(root), len = Math.max(.05, d.length());
+            rb.position.copy(root); rb.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), d.normalize());
+            rb.userData.tube.scale.set(1, len, 1); rb.userData.paw.position.y = len;
+          }
+        }
+        if (t >= HOLD && !dieTrain.snapped) { dieTrain.snapped = true; tone("sine", 900, 200, .25, .2); }
       }
       placePopEyes(popAmount, popT);
       blob.position.set(px, .01, cz(pr)); blob.scale.setScalar(1 - lift * .35); blob.visible = !(lane && lane.type === "river" && h === 1) && state !== "dying";
