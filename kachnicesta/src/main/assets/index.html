@@ -1457,12 +1457,17 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       g.rotation.set(Math.PI / 2, 0, 0); g.position.set(lx, .12, z - .5); scene.add(g);
       return { g, plane, side };
     });
-    const pool = new THREE.Mesh(new THREE.CircleGeometry(1, 24), new THREE.MeshLambertMaterial({ color: 0xa8001a }));
-    pool.rotation.x = -Math.PI / 2; pool.position.set(lx, .004, z); pool.scale.setScalar(.01); scene.add(pool); splats.push(pool);
+    // irregular puddle: wobbly outline plus a few separate drops
+    const mat = new THREE.MeshLambertMaterial({ color: 0xa8001a }), shape = new THREE.Shape(), N = 18;
+    const radii = Array.from({ length: N }, () => rand(.55, 1.15));
+    for (let i = 0; i <= N; i++) { const a = i / N * Math.PI * 2, rr = radii[i % N]; i ? shape.lineTo(Math.cos(a) * rr, Math.sin(a) * rr * .75) : shape.moveTo(Math.cos(a) * rr, Math.sin(a) * rr * .75); }
+    const pool = new THREE.Group(); pool.position.set(lx, .004, z); pool.scale.setScalar(.01);
+    const main = new THREE.Mesh(new THREE.ShapeGeometry(shape), mat); main.rotation.x = -Math.PI / 2; pool.add(main);
+    for (let i = 0; i < 4; i++) { const d = new THREE.Mesh(new THREE.CircleGeometry(rand(.1, .22), 10), mat); d.rotation.x = -Math.PI / 2; const a = rand(0, 6.28); d.position.set(Math.cos(a) * rand(1.1, 1.5), .001, Math.sin(a) * rand(.8, 1.1)); pool.add(d); }
+    pool.rotation.y = rand(0, 6.28); scene.add(pool); splats.push(pool);
     slice = { halves, pool, cx: lx, z };
     player.visible = false;
     SFX.splat();
-    burst(lx, z, .3, "feather", 0xc8102e);
   }
   function updateSlice(t) {
     if (!slice) return;
@@ -1472,8 +1477,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       h.plane.constant = -h.side * (slice.z + h.side * GAP);               // each half ends at its edge of the tyre track
     }
     const grow = Math.min(1, Math.max(0, (t - .1) / 1.2));
-    slice.pool.scale.set(.3 + grow * .6, .35 + grow * .75, 1);
-    if (t < 1 && Math.random() < .25) burst(slice.cx + rand(-.1, .1), slice.z, .3, "feather", 0xc8102e);
+    slice.pool.scale.setScalar(.15 + grow * .3);
   }
   function clearSlice() {
     motoRun = null;
