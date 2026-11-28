@@ -1009,7 +1009,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         else if (L.kind === "truck") m = makeTruck();
         else if (L.kind === "tractor") m = makeTractor();
         else if (L.kind === "bike") m = makeBike();
-        else if (L.kind === "train") { m = makeTrain(L.len); it.wait = rand(2, 5); it.x = L.dir > 0 ? -L.len - 4 : COLS + 4; }
+        else if (L.kind === "train") { m = makeTrain(L.len); it.wait = rand(1.5, 3.5); it.x = L.dir > 0 ? -L.len - 4 : COLS + 4; }
         else if (L.kind === "raft") m = makeRaft(L.len);
         else if (L.kind === "log") m = makeLog(L.len);
         else m = makeLily(L.len, i);
@@ -1593,12 +1593,18 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     });
   }
   const rubber = {};
+  // a coil of unit length along +y: stretching it spreads the coils like a real spring
+  const LIMB_SPRING = (() => {
+    const turns = 6, r = .09;
+    class Helix extends THREE.Curve { getPoint(t, out = new THREE.Vector3()) { const a = t * turns * Math.PI * 2; return out.set(Math.cos(a) * r, t, Math.sin(a) * r); } }
+    return new THREE.TubeGeometry(new Helix(), 180, .035, 8, false);
+  })();
   function rubberLimb(nm, lb) {
     if (!rubber[nm]) {
       const meshes = []; lb.traverse(o => { if (o.isMesh && !o.userData.isOutline) meshes.push(o); });
       const furC = meshes[0] ? meshes[0].material.color.getHex() : 0xe8692a, pawC = meshes.length ? meshes[meshes.length - 1].material.color.getHex() : 0x2a1a14;
       const g = new THREE.Group();
-      const tube = new THREE.Mesh(new THREE.CylinderGeometry(.1, .1, 1, 10), M(furC)); tube.geometry.translate(0, .5, 0);
+      const tube = new THREE.Mesh(LIMB_SPRING, M(furC));
       const holder = new THREE.Group(); holder.add(tube); g.add(holder);
       const paw = new THREE.Mesh(new THREE.SphereGeometry(.15, 12, 10), M(pawC)); g.add(paw);
       g.userData = { tube: holder, paw }; outline(g, .02, .01); scene.add(g); rubber[nm] = g;
@@ -1646,7 +1652,10 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     // right after hitting the animal the train lurches on slowly while the limbs stretch, then speeds away
     const slow = state === "dying" && dieKind === "train" && dieTrain && dieTrain.it === it && dieT < 1.1 ? (dieT < .8 ? .28 : .28 + (dieT - .8) / .3 * .72) : 1;
     it.x += l.v * dt * slow;
-    if ((l.v > 0 && it.x > COLS + 5) || (l.v < 0 && it.x + l.len < -5)) { it.wait = rand(3, 7) / (1 + .1 * (level - 1)); it.x = park; }
+    if ((l.v > 0 && it.x > COLS + 5) || (l.v < 0 && it.x + l.len < -5)) {
+      // trains come more often, and every so often one follows right behind another
+      it.wait = (Math.random() < .45 ? rand(.6, 1.3) : rand(2.2, 4.5)) / (1 + .1 * (level - 1)); it.x = park;
+    }
   }
   function trainWarning() {
     const l = lanes.find(q => q.kind === "train"); if (!l) return false;
@@ -1890,7 +1899,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           player.visible = !(motoRun && motoRun.sliced);
         } else if (dieKind === "train") {
           const tl = dieTrain ? dieTrain.lane : null;
-          py = .55; player.rotation.set(0, tl && tl.v > 0 ? -Math.PI / 2 : Math.PI / 2, Math.sin(clock * 20) * .1);
+          py = .55; player.rotation.set(0, tl && tl.v > 0 ? Math.PI / 2 : -Math.PI / 2, Math.sin(clock * 20) * .06);   // face pressed against the locomotive
           player.scale.set(1.12, 1.08, .7);
         } else if (dieKind === "truck") {
           const f = Math.min(1, dieT / .08);
@@ -2137,7 +2146,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           const natural = lb.localToWorld(new THREE.Vector3(0, -L0, 0));
           const end = natural.clone().lerp(dieTrain.anchors[nm], Math.max(0, f));
           const rb = rubberLimb(nm, lb);
-          const stretched = Math.abs(f) > .04;
+          const stretched = Math.abs(f) > .04 && t < HOLD + .35;
           lb.visible = !stretched; rb.visible = stretched;
           if (stretched) {
             const d = end.clone().sub(root), len = Math.max(.05, d.length());
@@ -2145,7 +2154,15 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
             rb.userData.tube.scale.set(1, len, 1); rb.userData.paw.position.y = len;
           }
         }
-        if (t >= HOLD && !dieTrain.snapped) { dieTrain.snapped = true; tone("sine", 900, 200, .25, .2); }
+        if (t >= HOLD && !dieTrain.snapped) { dieTrain.snapped = true; tone("sine", 900, 200, .25, .2); SFX.boing(); }
+        // once the limbs are back, it hugs the locomotive: arms and legs wrapped round its nose
+        const hug = Math.min(1, Math.max(0, (t - HOLD - .35) / .25));
+        if (hug > 0) {
+          const n = nm => player.getObjectByName(nm);
+          for (const [nm, sx] of [["armL", -1], ["armR", 1]]) { const a = n(nm); if (a) { a.visible = true; a.quaternion.identity(); a.rotation.set(-1.2 * hug, 0, sx * 1.35 * hug); a.scale.set(1, 1 + .5 * hug, 1); if (a.children[1]) a.children[1].rotation.set(-1.1 * hug, 0, 0); } }
+          for (const [nm, sx] of [["legL", -1], ["legR", 1]]) { const l = n(nm); if (l) { l.visible = true; l.quaternion.identity(); l.rotation.set(-.6 * hug, 0, sx * .7 * hug); l.scale.set(1, 1, 1); if (l.children[1]) l.children[1].rotation.set(-.9 * hug, 0, 0); } }
+          for (const k in rubber) rubber[k].visible = false;
+        }
       }
       placePopEyes(popAmount, popT);
       blob.position.set(px, .01, cz(pr)); blob.scale.setScalar(1 - lift * .35); blob.visible = !(lane && lane.type === "river" && h === 1) && state !== "dying";
