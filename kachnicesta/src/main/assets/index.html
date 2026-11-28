@@ -1940,6 +1940,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
         stork.position.set(L.from.x + L.t * 2.5, L.from.y + L.t * 2.2, L.from.z - L.t * 1.5);
         stork.rotation.set(0, -Math.PI / 2 + .5, 0);
         storkParts.wl.rotation.z = Math.sin(clock * 14) * .9; storkParts.wr.rotation.z = -Math.sin(clock * 14) * .9;
+        for (const [w, sx] of [[storkParts.wl, -1], [storkParts.wr, 1]]) { w.scale.set(1, 1, 1); w.position.x = sx * .09; }
         storkParts.ll.rotation.x = storkParts.lr.rotation.x = .9;
         if (L.t > 2.5) { stork.visible = false; duck.storkLeave = null; }
       }
@@ -1957,11 +1958,17 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           const from = new THREE.Vector3(x0 - 4, 4.5, z0 - 3);
           stork.visible = true;
           stork.position.copy(from.lerp(top, e)); if (fly < 1) stork.position.y += Math.sin(fly * Math.PI) * .6;
+          const settle = fly < 1 ? 0 : Math.min(1, (r - 1.8) / .4);              // sits down and folds its wings
+          stork.position.y -= settle * .3 * 1.6;
           stork.rotation.set(0, fly < 1 ? -Math.PI / 2 - .5 : Math.PI + Math.sin(clock * .7) * .4, 0);
           const flap = fly < 1 ? Math.sin(clock * 14) * .9 : (fly === 1 && r < 2.1 ? Math.sin(clock * 20) * .5 * (2.1 - r) / .3 : 0);
-          storkParts.wl.rotation.z = flap + (fly < 1 ? 0 : .15); storkParts.wr.rotation.z = -flap - (fly < 1 ? 0 : .15);
-          storkParts.ll.rotation.x = fly < 1 ? .9 : 0; storkParts.lr.rotation.x = fly < 1 ? .9 : -1.6;     // stands on one leg
-          storkParts.lr.children[0].visible = true;
+          for (const [w, sx] of [[storkParts.wl, -1], [storkParts.wr, 1]]) {
+            w.rotation.z = -sx * flap * (1 - settle) + sx * .25 * settle;          // folded wings droop against the body
+            w.scale.set(1 - .6 * settle, 1, 1 + .25 * settle);
+            w.position.x = sx * (.09 - .04 * settle);
+          }
+          // legs fold under the body when it sits
+          storkParts.ll.rotation.x = fly < 1 ? .9 : 1.5 * settle; storkParts.lr.rotation.x = fly < 1 ? .9 : 1.5 * settle;
           const clack = fly === 1 && ((r - 1.8) % 4) < .6;
           storkParts.jaw.rotation.x = -Math.PI / 2 + (clack ? Math.abs(Math.sin(clock * 30)) * .35 : 0);
           storkParts.head.rotation.x = clack ? -.6 : Math.sin(clock * 1.2) * .1;
