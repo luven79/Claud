@@ -1277,26 +1277,31 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       e.veins.position.copy(tip).add(toCam.clone().multiplyScalar(.2 * size)); e.veins.lookAt(camera.position); e.veins.scale.setScalar(size);
     }
   }
-  const SWIM = 1.6;                                   // seconds the hippo needs to swim over
+  const SWIM = 1.6;
+  function bubble(x, z) {
+    const m = new THREE.Mesh(new THREE.SphereGeometry(.05, 8, 6), new THREE.MeshBasicMaterial({ color: 0xe8fbff, transparent: true, opacity: .8 }));
+    m.position.set(x, -.14, z); scene.add(m);
+    particles.push({ m, vx: 0, vz: 0, vy: .3, life: .5, max: .5, g: 0, spin: 0 });
+  }                                   // seconds the hippo needs to swim over
   let hippoFrom = new THREE.Vector3();
   function hippoAnim(t0) {
     if (t0 < SWIM) {
       // swimming over with just the top of the head out of the water, mouth shut
       const q = t0 / SWIM, e = q * q * (3 - 2 * q);
-      hippo.position.set(hippoFrom.x + (hippoAt.x - hippoFrom.x) * e, -.78 + Math.sin(clock * 5) * .03, hippoFrom.z + (hippoAt.z - hippoFrom.z) * e);
+      hippo.position.set(hippoFrom.x + (hippoAt.x - hippoFrom.x) * e, -1.55, hippoFrom.z + (hippoAt.z - hippoFrom.z) * e);
       upperJaw.rotation.x = 0;
       for (const l of hippoLids) l.visible = false;
       const swimDir = hippoAt.x > hippoFrom.x ? Math.PI / 2 : -Math.PI / 2;
       const turn = Math.max(0, (q - .75) / .25);
       hippo.rotation.y = swimDir + (HIPPO_TURN - swimDir) * turn + Math.sin(clock * 3) * .05;
-      if (Math.random() < .08) burst(hippo.position.x + Math.sign(hippoFrom.x - hippoAt.x) * .5, hippo.position.z, -.05, "splash");
+      if (Math.random() < .15) bubble(hippo.position.x + rand(-.3, .3), hippo.position.z + rand(-.3, .3));
       return;
     }
     const t = t0 - SWIM;
     // 0–.5 rise with mouth opening · .5–.85 animal drops in · .85–.95 snap · .95–1.9 animal stuck, eyes pop out
     // 1.9–2.3 gulp · 2.3–3.0 sink
     const rise = Math.min(1, t / .5), sink = Math.max(0, (t - 2.4) / 1.0);
-    hippo.position.set(hippoAt.x, -.78 + rise * 1.2 - sink * sink * 1.8 + Math.sin(clock * 3) * .02, hippoAt.z);
+    hippo.position.set(hippoAt.x, -1.55 + rise * 1.97 - sink * sink * 1.8 + Math.sin(clock * 3) * .02, hippoAt.z);
     let open = 0;
     if (t < .5) open = rise * 1.05; else if (t < .85) open = 1.05; else if (t < .95) open = 1.05 - (t - .85) / .1 * .8;
     else open = .3 + Math.sin(t * 9) * .02;                        // jaws clamped on the animal, also while diving
@@ -1540,7 +1545,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           if (last === undefined || Math.abs(ax - last) > .1) { addFurrow(ax, az); dieCarry.lastFurrow = ax; }
           if (Math.random() < .35) burst(ax, az, .15, "feather", 0x6b4a2b);
         }
-        if (ti.x < -2 || ti.x > COLS + 1 || dieT > 7) afterDeath();
+        if (ti.x < -2.2 || ti.x > COLS + 1.2 || dieT > 16) afterDeath();
         return;
       }
       if (dieKind === "moto") {
@@ -1770,13 +1775,16 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           const t = dieT - SWIM;
           const mouth = atSnout(.78, .35);
           const fell = new THREE.Vector3(Math.min(COLS - .3, Math.max(.3, duck.x + .5)), -.05, cz(duck.row));   // where the animal splashed in
-          if (t < .5) { py = -.3 + Math.sin(clock * 14) * .05; player.rotation.z = Math.sin(clock * 16) * .35; ox = fell.x; oz = fell.z; if (Math.random() < .1) burst(fell.x, fell.z, -.05, "splash"); }   // paddling, half under water
-          else if (t < .85) {
-            // the open jaws close over the animal where it is paddling
-            const q = (t - .5) / .35, start = fell.clone();
-            const p = start.lerp(mouth, q * q); ox = p.x; oz = p.z; py = p.y + Math.sin(q * Math.PI) * .12;
-            player.rotation.set(q * 7, faceAngle, 0); player.scale.setScalar(1 - q * .25);
+          if (t < 0) {
+            // paddling half under water, then pulled under
+            const ts = dieT, sinkQ = Math.max(0, (ts - .6) / .5);
+            ox = fell.x; oz = fell.z; py = -.3 - sinkQ * 1.3 + (sinkQ < 1 ? Math.sin(clock * 14) * .05 : 0);
+            player.rotation.z = Math.sin(clock * 16) * .35 * (1 - sinkQ);
+            player.visible = sinkQ < .95;
+            if (sinkQ > 0 && sinkQ < 1 && Math.random() < .3) bubble(fell.x + rand(-.15, .15), fell.z + rand(-.15, .15));
+            else if (sinkQ === 0 && Math.random() < .1) burst(fell.x, fell.z, -.05, "splash");
           } else {
+            player.visible = true;
             // body inside the closed jaws, only the head pokes out; eyes shoot out; then down with the hippo
             const sq = t < .95 ? (t - .85) / .1 : 1;
             // held crosswise: head sticks out of one side of the mouth, bottom and kicking feet out of the other
@@ -1797,7 +1805,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
             if (hippo.position.y < -.95) player.visible = false;
             if (t >= 2.45 && t < 2.48) { const a = atSnout(.6); burst(a.x, a.z, .1, "splash"); }
           }
-          if (t >= 0 && t < .03) burst(hippoAt.x, hippoAt.z, .1, "splash");
+          if (t >= .2 && t < .23) burst(hippoAt.x, hippoAt.z, .1, "splash");
         }
         else { player.rotation.y = faceAngle + k * 12; py = Math.sin(k * Math.PI) * .5; }
       } else {
