@@ -1277,11 +1277,26 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       e.veins.position.copy(tip).add(toCam.clone().multiplyScalar(.2 * size)); e.veins.lookAt(camera.position); e.veins.scale.setScalar(size);
     }
   }
-  function hippoAnim(t) {
+  const SWIM = 1.6;                                   // seconds the hippo needs to swim over
+  let hippoFrom = new THREE.Vector3();
+  function hippoAnim(t0) {
+    if (t0 < SWIM) {
+      // swimming over with just the top of the head out of the water, mouth shut
+      const q = t0 / SWIM, e = q * q * (3 - 2 * q);
+      hippo.position.set(hippoFrom.x + (hippoAt.x - hippoFrom.x) * e, -.78 + Math.sin(clock * 5) * .03, hippoFrom.z + (hippoAt.z - hippoFrom.z) * e);
+      upperJaw.rotation.x = 0;
+      for (const l of hippoLids) l.visible = false;
+      const swimDir = hippoAt.x > hippoFrom.x ? Math.PI / 2 : -Math.PI / 2;
+      const turn = Math.max(0, (q - .75) / .25);
+      hippo.rotation.y = swimDir + (HIPPO_TURN - swimDir) * turn + Math.sin(clock * 3) * .05;
+      if (Math.random() < .08) burst(hippo.position.x + Math.sign(hippoFrom.x - hippoAt.x) * .5, hippo.position.z, -.05, "splash");
+      return;
+    }
+    const t = t0 - SWIM;
     // 0–.5 rise with mouth opening · .5–.85 animal drops in · .85–.95 snap · .95–1.9 animal stuck, eyes pop out
     // 1.9–2.3 gulp · 2.3–3.0 sink
     const rise = Math.min(1, t / .5), sink = Math.max(0, (t - 2.4) / 1.0);
-    hippo.position.set(hippoAt.x, -1.3 + rise * 1.72 - sink * sink * 1.8 + Math.sin(clock * 3) * .02, hippoAt.z);
+    hippo.position.set(hippoAt.x, -.78 + rise * 1.2 - sink * sink * 1.8 + Math.sin(clock * 3) * .02, hippoAt.z);
     let open = 0;
     if (t < .5) open = rise * 1.05; else if (t < .85) open = 1.05; else if (t < .95) open = 1.05 - (t - .85) / .1 * .8;
     else open = .3 + Math.sin(t * 9) * .02;                        // jaws clamped on the animal, also while diving
@@ -1292,7 +1307,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   }
 
   // ---- deaths: each kind has its own animation; a bike crash throws the animal under the next vehicle ----
-  const DIE_TIME = { car: 1.6, truck: 1.5, water: 3.6, time: 1.1, reeds: 1.1, tractor: 2.8, moto: 6 };
+  const DIE_TIME = { car: 1.6, truck: 1.5, water: 5.2, time: 1.1, reeds: 1.1, tractor: 2.8, moto: 6 };
   let dieCarry = null;
   // dizzy stars for the tractor landing
   const dizzy = new THREE.Group(); dizzy.visible = false; scene.add(dizzy);
@@ -1342,11 +1357,10 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   }
   function updateSlice(t) {
     if (!slice) return;
-    const open = Math.min(1, Math.max(0, t / .5)), ease = open * open * (3 - 2 * open);
+    const GAP = .11;                                                       // half the width of the tyre track
     for (const h of slice.halves) {
-      const d = h.side * ease * .28;
-      h.g.position.z = slice.z - .5 + d;
-      h.plane.constant = -h.side * (slice.z + d);                          // keep this half on its own side of the wheel track
+      h.g.position.z = slice.z - .5;
+      h.plane.constant = -h.side * (slice.z + h.side * GAP);               // each half ends at its edge of the tyre track
     }
     const grow = Math.min(1, Math.max(0, (t - .1) / 1.2));
     slice.pool.scale.set(.3 + grow * .6, .35 + grow * .75, 1);
@@ -1358,6 +1372,16 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     for (const h of slice.halves) { scene.remove(h.g); scene.remove(h.cap); }
     slice = null;
   }
+  const furrows = [];
+  const furrowMat = new THREE.MeshBasicMaterial({ color: 0x3e2612 }), ridgeMat = new THREE.MeshLambertMaterial({ color: 0x8a5a30 });
+  function addFurrow(x, z) {
+    const g = new THREE.Group(); g.position.set(x, 0, z);
+    const f = new THREE.Mesh(new THREE.PlaneGeometry(.16, .62), furrowMat); f.rotation.x = -Math.PI / 2; f.position.y = .004; g.add(f);
+    for (const dz of [-.3, .3]) { const r = new THREE.Mesh(boxGeo, ridgeMat); r.scale.set(.17, .09, .12); r.position.set(rand(-.03, .03), .04, dz * 1.2); g.add(r); }
+    if (Math.random() < .5) { const c = new THREE.Mesh(boxGeo, ridgeMat); c.scale.setScalar(rand(.05, .09)); c.position.set(rand(-.1, .1), .04, rand(-.4, .4)); c.rotation.y = rand(0, 3); g.add(c); }
+    scene.add(g); furrows.push(g);
+  }
+  function clearFurrows() { while (furrows.length) scene.remove(furrows.pop()); }
   function hitByVehicle(lane, it) {
     SFX.crash();
     if (it.kind === "moto") {
@@ -1394,11 +1418,17 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     if (kind !== "hit") {
       dieKind = kind; shake = .15;
       if (kind === "water") {
-        SFX.splash(); setTimeout(() => SFX.chomp(), 850); setTimeout(() => SFX.boing(), 1000);
+        SFX.splash(); setTimeout(() => SFX.chomp(), (SWIM + .85) * 1000); setTimeout(() => SFX.boing(), (SWIM + 1) * 1000);
         boinged = false;
+        // the hippo swims up so that its snout ends right at the animal, keeping its body in the river
         const seg = SEGMENTS.find(sg => sg.type === "river" && duck.row >= sg.r0 && duck.row < sg.r0 + sg.n);
-        const midZ = seg ? seg.r0 + seg.n / 2 - .7 : cz(duck.row) - .25;          // snout points towards +z, keep it over the water
-        hippoAt.set(Math.min(COLS - 1.2, Math.max(1.2, duck.x + .5)), 0, midZ); hippo.visible = true; hippoAnim(0);
+        const fx = Math.min(COLS - .3, Math.max(.3, duck.x + .5)), fz = cz(duck.row);
+        let hx = fx - SNOUT.x * .82, hz = fz - SNOUT.z * .82;
+        if (seg) hz = Math.max(seg.r0 + .35, hz);
+        hippoAt.set(Math.min(COLS - 1, Math.max(1, hx)), 0, hz);
+        const side = fx > COLS / 2 ? -1 : 1;
+        hippoFrom.set(hippoAt.x + side * 3.4, 0, hippoAt.z);
+        hippo.visible = true; hippoAnim(0);
       }
       burst(duck.x + .5, cz(duck.row), .4, kind === "water" ? "splash" : "feather", furOf());
       if (navigator.vibrate) try { navigator.vibrate(80); } catch (e) {}
@@ -1447,6 +1477,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     });
   }
   function afterDeath() {
+    clearFurrows();
     clearSlice();
     clearCharges(); clearSkids();
     if (player) { showOnlyHead(player, false); player.traverse(o => { if (o.isMesh && o.userData.wasHidden) { o.visible = true; delete o.userData.wasHidden; } }); }
@@ -1500,6 +1531,18 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     }
     if (state === "dying") {
       dieT += dt;
+      if (dieKind === "tractor" && dieCarry) {
+        // dragged behind the tractor, ploughing a furrow in the road
+        const { lane: tl, it: ti } = dieCarry;
+        const ax = ti.x + ti.len / 2 - tl.dir * .85, az = cz(tl.row);
+        if (dieT > .3 && ax > -.3 && ax < COLS + .3) {
+          const last = dieCarry.lastFurrow;
+          if (last === undefined || Math.abs(ax - last) > .1) { addFurrow(ax, az); dieCarry.lastFurrow = ax; }
+          if (Math.random() < .35) burst(ax, az, .15, "feather", 0x6b4a2b);
+        }
+        if (ti.x < -2 || ti.x > COLS + 1 || dieT > 7) afterDeath();
+        return;
+      }
       if (dieKind === "moto") {
         if (motoRun && !motoRun.sliced) {
           const bx = motoRun.it.x + .5, over = motoRun.lane.dir > 0 ? bx >= motoRun.lx : bx <= motoRun.lx;
@@ -1524,7 +1567,14 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           const a = tg.v.x + .1, b = tg.v.x + tg.v.len - .1, cx = duck.x + .5;
           if (cx + .3 > a && cx - .3 < b) { hitByVehicle(tg.lane, tg.v); return; }
         }
-        if (toss.t > toss.delay + 3) startHit("car");
+        if (toss.t >= toss.delay + .55) {
+          const ll = laneAt(duck.row), cxx = duck.x + .5;
+          if (ll && ll.mixed && !ll.only) for (const v of ll.items) {
+            if (v.crashed || v.kind === "bike" || v.kind === "ped") continue;
+            if (cxx + .3 > v.x + .1 && cxx - .3 < v.x + v.len - .1) { hitByVehicle(ll, v); return; }
+          }
+        }
+        if (toss.t > toss.delay + 6) startHit("car");
         return;
       }
       if (dieT >= (DIE_TIME[dieKind] || 1.2)) afterDeath();
@@ -1678,24 +1728,14 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           player.scale.setScalar(1 + e * 1.6);
           if (k > .93) player.visible = false;
         } else if (dieKind === "tractor" && dieCarry) {
-          // caught on the big rear wheel, spun round twice, flung behind and left dizzy
-          const { lane: tl, it: ti } = dieCarry, dir = tl.dir;
-          const wx = ti.x + ti.len / 2 - dir * .2, wz = cz(tl.row) + .42, t = dieT;
-          if (t < 1.0) {
-            const a = -dir * t * Math.PI * 4;
-            ox = wx + Math.cos(a) * .36; oz = wz; py = .26 + Math.sin(a) * .36;
-            player.rotation.set(0, faceAngle, a);
-          } else {
-            if (!dieCarry.fling) dieCarry.fling = { x: wx - dir * .3, z: wz, tx: Math.max(.3, Math.min(COLS - .3, wx - dir * 2.2)) };
-            const f = dieCarry.fling, q = Math.min(1, (t - 1.0) / .8);
-            ox = f.x + (f.tx - f.x) * q; oz = f.z - .4 * q; py = .3 + Math.sin(q * Math.PI) * 1.6;
-            if (q < 1) player.rotation.set(q * 9, faceAngle, q * 6);
-            else {
-              py = .12; player.rotation.set(0, faceAngle + Math.sin(clock * 5) * .4, Math.PI / 2);
-              dizzy.visible = true;
-              dizzy.children.forEach((st, i) => { const a = clock * 4 + i * 2.1; st.position.set(ox + Math.cos(a) * .3, .55 + Math.sin(clock * 6 + i) * .04, oz + Math.sin(a) * .3); st.rotation.y = clock * 5; });
-            }
-          }
+          // hooked on the back of the tractor, dragged on its back with its head digging into the road
+          const { lane: tl, it: ti } = dieCarry, dir = tl.dir, q = Math.min(1, dieT / .3);
+          const ax = ti.x + ti.len / 2 - dir * .85, az = cz(tl.row);
+          ox = dieFrom.x + (ax - dieFrom.x) * q; oz = dieFrom.z + (az - dieFrom.z) * q;
+          py = .05 + Math.sin(q * Math.PI) * .4 + Math.abs(Math.sin(clock * 30)) * .03;
+          player.rotation.set(0, dir > 0 ? Math.PI / 2 : -Math.PI / 2, 0);
+          player.rotateX(-(Math.PI / 2) * q);
+          player.rotateZ(Math.sin(clock * 25) * .12);
         } else if (dieKind === "moto") {
           // knocked flat on its back, sliding a little ahead of the bike
           const q = Math.min(1, dieT / .3);
@@ -1726,13 +1766,15 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           if (t >= 1) { py = .18; player.rotation.set(0, faceAngle + Math.sin(clock * 6) * .3, Math.PI / 2); }
           }
         } else if (dieKind === "water") {
-          const t = dieT; hippoAnim(t);
+          hippoAnim(dieT);
+          const t = dieT - SWIM;
           const mouth = atSnout(.78, .35);
           const fell = new THREE.Vector3(Math.min(COLS - .3, Math.max(.3, duck.x + .5)), -.05, cz(duck.row));   // where the animal splashed in
-          if (t < .5) { py = -.05 + Math.sin(clock * 14) * .05; player.rotation.z = Math.sin(clock * 16) * .35; ox = fell.x; oz = fell.z; }
+          if (t < .5) { py = -.3 + Math.sin(clock * 14) * .05; player.rotation.z = Math.sin(clock * 16) * .35; ox = fell.x; oz = fell.z; if (Math.random() < .1) burst(fell.x, fell.z, -.05, "splash"); }   // paddling, half under water
           else if (t < .85) {
+            // the open jaws close over the animal where it is paddling
             const q = (t - .5) / .35, start = fell.clone();
-            const p = start.lerp(mouth, q); ox = p.x; oz = p.z; py = p.y + Math.sin(q * Math.PI) * .8;
+            const p = start.lerp(mouth, q * q); ox = p.x; oz = p.z; py = p.y + Math.sin(q * Math.PI) * .12;
             player.rotation.set(q * 7, faceAngle, 0); player.scale.setScalar(1 - q * .25);
           } else {
             // body inside the closed jaws, only the head pokes out; eyes shoot out; then down with the hippo
@@ -1755,7 +1797,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
             if (hippo.position.y < -.95) player.visible = false;
             if (t >= 2.45 && t < 2.48) { const a = atSnout(.6); burst(a.x, a.z, .1, "splash"); }
           }
-          if (t >= .5 && t < .53) burst(hippoAt.x, hippoAt.z, .1, "splash");
+          if (t >= 0 && t < .03) burst(hippoAt.x, hippoAt.z, .1, "splash");
         }
         else { player.rotation.y = faceAngle + k * 12; py = Math.sin(k * Math.PI) * .5; }
       } else {
@@ -1784,7 +1826,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
 
       // camera follows the duck in depth
       showcase = state === "menu" || state === "over";
-      closeUp = state === "dying" && ((dieKind === "water" && dieT > .35 && dieT < 3.3) || (dieKind === "moto" && dieT > .15 && (!motoRun || !motoRun.sliced || dieT - motoRun.t0 < 2.4)));
+      closeUp = state === "dying" && ((dieKind === "water" && dieT > .35 && dieT < 4.9) || (dieKind === "moto" && dieT > .15 && (!motoRun || !motoRun.sliced || dieT - motoRun.t0 < 2.4)));
       const wantZ = showcase ? cz(pr) - 0.1 : closeUp ? hippoAt.z + .45 : Math.min(ROWS - 5.4, Math.max(4.4, cz(pr) - 3.2));
       const wantX = showcase ? px : closeUp ? hippoAt.x + .05 : COLS / 2 + 0.7;
       camTarget.z += (wantZ - camTarget.z) * Math.min(1, dt * 4);
