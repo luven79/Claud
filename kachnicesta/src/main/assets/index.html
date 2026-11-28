@@ -1161,10 +1161,28 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   paperPage(paper, -.137, 1); paperPage(paper, -.137, -1);
   paperPage(paperFlap, .137, 1); paperPage(paperFlap, .137, -1);
   const rustle = () => noise(.25, .12, 2500, .8, 0, 4000);
+  const blanket = (() => {
+    const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
+    for (let i = 0; i < 8; i++) for (let j = 0; j < 8; j++) { x.fillStyle = (i + j) % 2 ? "#e63946" : "#fdf6ec"; x.fillRect(i * 8, j * 8, 8, 8); }
+    const t = new THREE.CanvasTexture(c); t.magFilter = THREE.NearestFilter;
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(.85, 1.45), new THREE.MeshToonMaterial({ map: t, gradientMap: toonRamp }));
+    m.rotation.x = -Math.PI / 2; m.receiveShadow = true;
+    const g = new THREE.Group(); g.add(m); g.visible = false; scene.add(g); return g;
+  })();
+  function makeShades() {
+    const g = new THREE.Group(), black = new THREE.MeshBasicMaterial({ color: 0x0c0c10 });
+    for (const sx of [-1, 1]) { const lens = new THREE.Mesh(new THREE.SphereGeometry(1, 12, 8), black); lens.scale.set(.06, .045, .025); lens.position.x = sx * .065; g.add(lens);
+      const shine = new THREE.Mesh(new THREE.SphereGeometry(1, 6, 4), new THREE.MeshBasicMaterial({ color: 0x6a7a90 })); shine.scale.set(.015, .01, .005); shine.position.set(sx * .065 + .02, .015, -.024); g.add(shine); }
+    const bridge = new THREE.Mesh(boxGeo, black); bridge.scale.set(.05, .012, .01); g.add(bridge);
+    for (const sx of [-1, 1]) { const arm = new THREE.Mesh(boxGeo, black); arm.scale.set(.01, .012, .14); arm.position.set(sx * .12, 0, .07); g.add(arm); }
+    return g;
+  }
+  let shades = null;
   function endRest() {
     if (!duck) return;
     duck.idle = 0;
-    if (duck.rest !== undefined) { duck.rest = undefined; stool.visible = paper.visible = false; }
+    if (duck.rest !== undefined) { duck.rest = undefined; stool.visible = paper.visible = blanket.visible = false; }
+    if (shades) { shades.parent && shades.parent.remove(shades); shades = null; }
   }
 
   // ---- hippo that eats animals falling into the water ----
@@ -1633,7 +1651,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     if (duck.hop === 1 && !duck.stunned && !laneAt(duck.row) && duck.row !== 0) {
       duck.idle = (duck.idle || 0) + dt;
       if (duck.idle > REST_AFTER) {
-        if (duck.rest === undefined) { duck.rest = 0; rustle(); }
+        if (duck.rest === undefined) { duck.rest = 0; duck.restMode = Math.random() < .5 ? "paper" : "sun"; rustle(); }
         const before = duck.rest; duck.rest += dt;
         if (before < .8 && duck.rest >= .8) rustle();
         if (duck.rest > 1.2 && Math.floor((duck.rest - 1.2) / 4.5) !== Math.floor((before - 1.2) / 4.5)) rustle();   // page turn
@@ -1864,17 +1882,34 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       if (state === "play" && duck.rest !== undefined) {
         const r = duck.rest, x0 = duck.x + .5, z0 = cz(duck.row);
         const pop = Math.min(1, r / .35), sit = Math.min(1, Math.max(0, (r - .35) / .4)), open = Math.min(1, Math.max(0, (r - .8) / .35));
-        stool.visible = true; stool.position.set(x0, 0, z0 - .05); stool.scale.setScalar(.2 + .8 * pop); stool.rotation.y = .3 * (1 - pop);
-        // sitting on the stool, facing the camera
-        py = sit * .2; player.rotation.set(0, Math.PI, 0); player.scale.set(1, 1, 1);
+        if (duck.restMode === "sun") {
+          // spreads a checked blanket, lies down on its back and puts on sunglasses
+          blanket.visible = true; blanket.position.set(x0, .01, z0 - .2); blanket.scale.set(1, 1, Math.max(.05, pop));
+          const lie = sit;
+          py = .06; oz = z0 - .95 * lie; ox = x0;
+          player.rotation.set(Math.PI / 2 * lie, 0, 0); player.scale.set(1, 1, 1);
+          restPose = { sun: lie, wiggle: Math.sin(clock * 2) };
+          if (open > .5 && !shades) {
+            shades = makeShades();
+            const head = player.getObjectByName("head");
+            if (head) { shades.position.set(0, .06, -.2); head.add(shades); }
+            else { shades.position.set(0, .68, -.33); shades.scale.setScalar(1.4); player.userData.body.add(shades); }
+          }
+          stool.visible = paper.visible = false;
+          dizzy.visible = false;
+        } else {
+        stool.visible = true; stool.position.set(x0, 0, z0 + .05); stool.scale.setScalar(.2 + .8 * pop); stool.rotation.y = .3 * (1 - pop);
+        // sitting on the stool facing the road, holding a big newspaper we read over its shoulder
+        py = sit * .2; player.rotation.set(0, 0, 0); player.scale.set(1, 1, 1);
         restPose = { sit, open };
         paper.visible = open > 0;
-        paper.position.set(x0, .62 + sit * .1, z0 + .3); paper.scale.set(1.5 * Math.max(.05, open), 1.5, 1.5);
-        paper.rotation.set(-.75, 0, Math.sin(clock * .7) * .02);       // tilted up so it reads from above
+        paper.position.set(x0, .8 + sit * .1, z0 - .38); paper.scale.set(2.3 * Math.max(.05, open), 2.3, 2.3);
+        paper.rotation.set(-.35, 0, Math.sin(clock * .7) * .02);
         // every few seconds the right page is turned over
         const pt = r > 1.2 ? ((r - 1.2) % 4.5) : 99;
         paperFlap.rotation.y = pt < .5 ? -Math.PI * Math.sin(pt / .5 * Math.PI) * .95 : 0;
         dizzy.visible = false;
+        }
       } else if (state === "play" && duck.stunned) {
         py = 0; player.rotation.set(0, Math.PI + Math.sin(clock * 3) * .3, Math.sin(clock * 5) * .12);
         player.scale.set(1.05, .82, 1.05);                                   // sitting down, squashed
@@ -1887,13 +1922,24 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
       player.position.set(ox !== null ? ox : px, py, oz !== null ? oz : cz(pr));
       if (player.userData.animate) player.userData.animate(clock, lift, state === "dying" ? "hurt" : (h < 1 || (showcase && Math.sin(clock * 1.3) > .9)) ? "jump" : "idle");
       if (restPose) {                                         // seated pose overrides the idle animation
-        const { sit, open } = restPose;
+        const { sit, open, sun, wiggle } = restPose;
+        if (sun !== undefined) {
+          const n = nm => player.getObjectByName(nm);
+          if (n("legL")) {
+            n("legL").rotation.set(0, 0, -.25 * sun); n("legR").rotation.set(0, 0, .25 * sun);
+            n("legL").children[1].rotation.x = n("legR").children[1].rotation.x = 0;
+            n("legR").rotation.x = Math.max(0, wiggle) * .5 * sun;           // foot tapping to the music
+            n("armL").rotation.set(0, 0, -2.6 * sun); n("armR").rotation.set(0, 0, 2.6 * sun);   // hands behind the head
+            const hd = n("head"); if (hd) hd.rotation.set(-.2 * sun, 0, Math.sin(clock * .6) * .05);
+          }
+        } else {
           const n = nm => player.getObjectByName(nm);
           if (n("legL")) {
             for (const lg of [n("legL"), n("legR")]) { lg.rotation.x = 1.35 * sit; lg.children[1].rotation.x = -1.35 * sit; }
             for (const ar of [n("armL"), n("armR")]) { ar.rotation.x = 1.2 * open; ar.rotation.z *= 1 - open; }
             const hd = n("head"); if (hd) { hd.rotation.x = .15 * open + Math.sin(clock * .8) * .04; hd.rotation.z = Math.sin(clock * .5) * .05; }
           }
+        }
         restPose = null;
       }
       placePopEyes(popAmount, popT);
