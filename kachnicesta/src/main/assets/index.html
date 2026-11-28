@@ -1158,8 +1158,14 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
     if (x0 < 0) { ink(.22, .045, 0, .15, 0x1b1b1f); ink(.1, .08, -.05, .07, 0x8a9099); }        // headline and a photo
     for (let i = 0; i < 9; i++) ink(i % 3 === 2 ? .12 : .2, .008, (i % 3 === 2 ? -.04 : 0) + (x0 < 0 && i < 3 ? .05 : 0), (x0 < 0 ? .02 : .15) - i * .028);
   }
-  paperPage(paper, -.137, 1); paperPage(paper, -.137, -1);
-  paperPage(paperFlap, .137, 1); paperPage(paperFlap, .137, -1);
+  // an open newspaper bent into a V: each half hinges at the spine and leans towards the reader (+z)
+  const PAPER_V = .45;
+  const pageL = new THREE.Group(), pageR = new THREE.Group(); paper.add(pageL, pageR);
+  paperPage(pageL, -.137, 1); paperPage(pageL, -.137, -1);
+  paperPage(pageR, .137, 1); paperPage(pageR, .137, -1);
+  pageL.rotation.y = PAPER_V; pageR.rotation.y = -PAPER_V;
+  paperPage(paperFlap, .137, 1); paperPage(paperFlap, .137, -1); paperFlap.visible = false;   // the page being turned
+  const spine = new THREE.Mesh(boxGeo, M(0xd8d3c4)); spine.scale.set(.008, .4, .012); paper.add(spine);
   const rustle = () => noise(.25, .12, 2500, .8, 0, 4000);
   const blanket = (() => {
     const c = document.createElement("canvas"); c.width = c.height = 64; const x = c.getContext("2d");
@@ -1180,6 +1186,7 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
   let shades = null;
   function endRest() {
     if (!duck) return;
+    if (player) for (const nm of ["armL", "armR"]) { const a = player.getObjectByName(nm); if (a) a.scale.set(1, 1, 1); }
     duck.idle = 0;
     if (duck.rest !== undefined) { duck.rest = undefined; stool.visible = paper.visible = blanket.visible = false; }
     if (shades) { shades.parent && shades.parent.remove(shades); shades = null; }
@@ -1898,16 +1905,18 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           stool.visible = paper.visible = false;
           dizzy.visible = false;
         } else {
+        blanket.visible = false; if (shades) { shades.parent && shades.parent.remove(shades); shades = null; }
         stool.visible = true; stool.position.set(x0, 0, z0 + .05); stool.scale.setScalar(.2 + .8 * pop); stool.rotation.y = .3 * (1 - pop);
         // sitting on the stool facing the road, holding a big newspaper we read over its shoulder
         py = sit * .2; player.rotation.set(0, 0, 0); player.scale.set(1, 1, 1);
         restPose = { sit, open };
         paper.visible = open > 0;
-        paper.position.set(x0, .8 + sit * .1, z0 - .38); paper.scale.set(2.3 * Math.max(.05, open), 2.3, 2.3);
-        paper.rotation.set(-.35, 0, Math.sin(clock * .7) * .02);
+        paper.position.set(x0, .8 + sit * .08, z0 - .3); paper.scale.set(1.75 * Math.max(.05, open), 1.75, 1.75);
+        paper.rotation.set(-.3, 0, Math.sin(clock * .7) * .02);
         // every few seconds the right page is turned over
         const pt = r > 1.2 ? ((r - 1.2) % 4.5) : 99;
-        paperFlap.rotation.y = pt < .5 ? -Math.PI * Math.sin(pt / .5 * Math.PI) * .95 : 0;
+        paperFlap.visible = pt < .6;
+        paperFlap.rotation.y = -PAPER_V + (pt < .6 ? (2 * PAPER_V) * (pt / .6) + Math.sin(pt / .6 * Math.PI) * -1.2 : 0);
         dizzy.visible = false;
         }
       } else if (state === "play" && duck.stunned) {
@@ -1936,7 +1945,17 @@ button:focus-visible { outline: 3px solid var(--ink); outline-offset: 3px; }
           const n = nm => player.getObjectByName(nm);
           if (n("legL")) {
             for (const lg of [n("legL"), n("legR")]) { lg.rotation.x = 1.35 * sit; lg.children[1].rotation.x = -1.35 * sit; }
-            for (const ar of [n("armL"), n("armR")]) { ar.rotation.x = 1.2 * open; ar.rotation.z *= 1 - open; }
+            if (open > 0) {
+              paper.updateMatrixWorld(true); player.updateMatrixWorld(true);
+              for (const [ar, page, gx] of [[n("armL"), pageL, -.24], [n("armR"), pageR, .24]]) {
+                const grip = page.localToWorld(new THREE.Vector3(gx, -.04, .01));
+                const local = ar.parent.worldToLocal(grip.clone()).sub(ar.position);
+                const len = local.length();
+                ar.quaternion.setFromUnitVectors(new THREE.Vector3(0, -1, 0), local.normalize());
+                ar.scale.set(1, Math.max(.4, len / .26) * open + (1 - open), 1);
+                ar.children[1].rotation.x = 0;
+              }
+            }
             const hd = n("head"); if (hd) { hd.rotation.x = .15 * open + Math.sin(clock * .8) * .04; hd.rotation.z = Math.sin(clock * .5) * .05; }
           }
         }
